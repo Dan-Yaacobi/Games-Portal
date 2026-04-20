@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import GamesPage from './pages/GamesPage';
+import TestGamePage from './pages/TestGamePage';
 
 export default function App() {
   return (
@@ -27,6 +28,15 @@ export default function App() {
           element={
             <ProtectedRoute>
               <GamesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/test-game"
+          element={
+            <ProtectedRoute>
+              <TestGamePage />
             </ProtectedRoute>
           }
         />
