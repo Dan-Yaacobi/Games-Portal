@@ -10,6 +10,15 @@ import { validateWubbleSubmission } from './wubbleValidation.service.js';
 
 const GAME_SLUG = 'wubble-web';
 
+async function closePlatformSession(sessionId) {
+  await query(
+    `UPDATE game_sessions
+     SET ended_at = NOW(), score = COALESCE(score, 0), coins_earned = COALESCE(coins_earned, 0)
+     WHERE id = $1 AND ended_at IS NULL`,
+    [sessionId]
+  );
+}
+
 async function getWubbleGame() {
   const game = await getGameBySlug(GAME_SLUG);
   if (!game || !game.is_active) {
@@ -41,19 +50,37 @@ export async function startWubbleSession({ userId, wordDifficulty, speedDifficul
 
   if (existingWubbleResult.rowCount) {
     const row = existingWubbleResult.rows[0];
-    return {
-      status: 200,
-      body: {
-        platformSessionId,
-        wubbleSessionId: row.id,
-        durationSeconds: row.duration_seconds,
-        wordDifficulty: row.word_difficulty,
-        speedDifficulty: row.speed_difficulty,
-        promptSchedule: row.prompt_schedule_json,
-        spawnPlan: row.spawn_plan_json,
-        serverTime: new Date().toISOString()
-      }
-    };
+    const hasMatchingDifficulty =
+      row.word_difficulty === wordDifficulty && row.speed_difficulty === speedDifficulty;
+
+    if (hasMatchingDifficulty) {
+      return {
+        status: 200,
+        body: {
+          platformSessionId,
+          wubbleSessionId: row.id,
+          durationSeconds: row.duration_seconds,
+          wordDifficulty: row.word_difficulty,
+          speedDifficulty: row.speed_difficulty,
+          promptSchedule: row.prompt_schedule_json,
+          spawnPlan: row.spawn_plan_json,
+          serverTime: new Date().toISOString()
+        }
+      };
+    }
+
+    await closePlatformSession(platformSessionId);
+
+    const newSessionResult = await startOrGetSession({ userId, gameId: game.id });
+    if (newSessionResult.status >= 400) {
+      return newSessionResult;
+    }
+
+    return startWubbleSession({
+      userId,
+      wordDifficulty,
+      speedDifficulty
+    });
   }
 
   const content = await getWubbleContent({ wordDifficulty });
