@@ -10,6 +10,7 @@ export default function NavBar() {
         <>
           <Link to="/dashboard">Dashboard</Link>
           <Link to="/games">Games</Link>
+          <Link to="/test-game">Test Game</Link>
           <span>Coins: {user?.coins ?? 0}</span>
           <button onClick={logout}>Logout</button>
         </>

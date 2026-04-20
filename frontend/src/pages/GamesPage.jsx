@@ -19,17 +19,16 @@ export default function GamesPage() {
       setStatus('Starting game session...');
       const startData = await gamesApi.start(gameId);
 
-      // Placeholder score generation until actual games are integrated.
       const simulatedScore = Math.floor(Math.random() * 1000);
 
       const completeData = await gamesApi.complete(gameId, {
-        sessionId: startData.session.id,
+        sessionId: startData.sessionId,
         score: simulatedScore
       });
 
       await refreshUser();
       setStatus(
-        `Finished game. Score: ${simulatedScore}, coins awarded: ${completeData.awarded}, balance: ${completeData.balance}`
+        `Finished game. Score: ${simulatedScore}, coins awarded: ${completeData.coinsEarned}, balance: ${completeData.totalCoins}`
       );
     } catch (error) {
       setStatus(error.message);
