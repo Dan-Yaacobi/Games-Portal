@@ -282,7 +282,11 @@ export default function WubbleWebPage() {
       }
     ]);
 
-    const position = getBubblePosition({ spawn, elapsedMs });
+    const timing = getEffectiveSpawnTiming(spawn);
+    const position = getBubblePosition({
+      spawn: { ...spawn, appearsAtMs: timing.appearsAtMs, travelDurationMs: timing.expiresAtMs - timing.appearsAtMs },
+      elapsedMs
+    });
 
     const scoreRect = scoreRef.current?.getBoundingClientRect();
     const containerRect = gameContainerRef.current?.getBoundingClientRect();
