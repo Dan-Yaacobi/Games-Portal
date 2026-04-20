@@ -9,11 +9,13 @@ This repository contains a platform-first foundation for a web-based game portal
   - `users` (profile endpoint)
   - `economy` (coin transaction history)
   - `games` (generic game listing/session start/session completion)
-- `frontend/` contains a minimal React app with routes for:
+  - `wubbleWeb` (real game session generation + authoritative scoring)
+- `frontend/` contains React app routes for:
   - `/login`
   - `/register`
   - `/dashboard`
   - `/games`
+  - `/games/wubble-web`
 
 ## Prerequisites
 
@@ -45,10 +47,6 @@ Frontend runs on `http://localhost:5173`.
 
 ## Migration instructions
 
-The initial migration is:
-
-- `backend/migrations/001_initial_schema.sql`
-
 Run migrations with:
 
 ```bash
@@ -72,12 +70,59 @@ npm run migrate
 - `POST /games/:id/start`
 - `POST /games/:id/complete`
 
+### Wubble Web
+- `POST /wubble-web/start`
+- `POST /wubble-web/submit`
+
 ### Economy
 - `GET /economy/transactions`
+
+## Wubble Web implementation notes
+
+### Schema
+
+`backend/migrations/003_wubble_web.sql` adds:
+- `word_categories`
+- `words`
+- `word_category_links`
+- `wubble_sessions`
+- `wubble_submissions`
+- indexes for lookup paths used by generation/validation
+- game registration seed for slug `wubble-web`
+
+### Session flow
+
+1. Frontend calls `POST /wubble-web/start` with `wordDifficulty`, `speedDifficulty`, and `durationSeconds` (`60` or `120`).
+2. Backend resolves game slug `wubble-web`, creates/reuses platform `game_sessions` row, then generates:
+   - prompt schedule (15–30 second windows for the selected game length)
+   - full spawn plan (includes deterministic spawn metadata, categories, timing)
+3. Backend persists generated data in `wubble_sessions` and returns client-safe payload.
+
+### Validation flow
+
+1. Client records click event log (`spawnId`, `timestampMs`) and submits at game end.
+2. Backend validates:
+   - ownership / session linkage
+   - one submission per wubble session
+   - timestamps in range
+   - known spawn IDs
+   - duplicate click abuse (duplicates rejected)
+   - click timing within bubble lifetime
+3. Backend computes authoritative score from generated prompt+spawn data.
+4. Submission + platform completion + coin award are executed in one transaction.
+5. Validation summary is persisted to `wubble_submissions.validation_summary_json`.
+
+### Local play
+
+1. Start backend/frontend.
+2. Login/register.
+3. Open `/games` and launch Wubble Web.
+4. Play a round using either a 60-second or 120-second duration.
+5. Final score and coin reward come from backend-validated submission (not provisional UI score).
 
 ## Security notes
 
 - Passwords are hashed with bcrypt.
 - Auth uses JWT in an `httpOnly` cookie.
 - CORS is configured with credentials.
-- Game completion uses server-side coin calculation (`score / 10`) with a TODO for anti-cheat hardening.
+- Wubble Web scoring is server-authoritative and coins are awarded only from validated score.
