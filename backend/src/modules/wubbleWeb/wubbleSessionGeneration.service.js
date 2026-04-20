@@ -9,6 +9,15 @@ function pickRandom(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
 
+function shuffle(array) {
+  const copy = [...array];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 function clampPromptDuration(remainingMs) {
   if (remainingMs <= PROMPT_MAX_MS) return remainingMs;
   const min = Math.min(PROMPT_MIN_MS, remainingMs);
@@ -79,6 +88,8 @@ export function generateSpawnPlan({ words, promptSchedule, speedDifficulty, dura
   const activeEndTimes = [];
   const wordUsageCount = new Map();
   const recentWordIds = [];
+  const categoryQueues = new Map();
+  const categoryQueueIndices = new Map();
   let appearsAtMs = 0;
   let spawnOrdinal = 0;
 
@@ -96,7 +107,31 @@ export function generateSpawnPlan({ words, promptSchedule, speedDifficulty, dura
       const pool = chooseWordPool({ words, currentPrompt, shouldMatchPrompt });
 
       if (pool.length) {
-        const chosenWord = pickBalancedWord(pool, wordUsageCount, recentWordIds);
+        let chosenWord = null;
+
+        if (shouldMatchPrompt) {
+          const categorySlug = currentPrompt.categorySlug;
+          if (!categoryQueues.has(categorySlug)) {
+            categoryQueues.set(categorySlug, shuffle(pool));
+            categoryQueueIndices.set(categorySlug, 0);
+          }
+
+          let queue = categoryQueues.get(categorySlug);
+          let queueIndex = categoryQueueIndices.get(categorySlug) || 0;
+
+          if (queueIndex >= queue.length) {
+            queue = shuffle(pool);
+            queueIndex = 0;
+            categoryQueues.set(categorySlug, queue);
+            categoryQueueIndices.set(categorySlug, queueIndex);
+          }
+
+          chosenWord = queue[queueIndex];
+          categoryQueueIndices.set(categorySlug, queueIndex + 1);
+        } else {
+          chosenWord = pickBalancedWord(pool, wordUsageCount, recentWordIds);
+        }
+
         const spawnId = `spawn-${spawnOrdinal}`;
         const travelDurationMs = Math.max(1800, config.travelDurationMs + Math.floor(Math.random() * 600) - 300);
 

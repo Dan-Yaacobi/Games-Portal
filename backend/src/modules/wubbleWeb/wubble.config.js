@@ -12,4 +12,4 @@ export const SPEED_DIFFICULTIES = Object.keys(SPEED_CONFIG);
 
 export const PROMPT_MIN_MS = 15000;
 export const PROMPT_MAX_MS = 30000;
-export const MIN_CATEGORY_WORDS = 3;
+export const MIN_CATEGORY_WORDS = 8;

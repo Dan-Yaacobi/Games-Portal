@@ -36,6 +36,27 @@ function createParticles(centerLeft, centerBottom, isCorrect) {
   }));
 }
 
+
+function getBubbleDimensions(wordText) {
+  const chars = wordText.length;
+  const width = Math.min(170, Math.max(92, 74 + chars * 8));
+  const height = Math.min(126, Math.max(88, 74 + chars * 3.8));
+
+  return {
+    width,
+    height,
+    fontSize: chars > 13 ? 11 : chars > 9 ? 12 : 13
+  };
+}
+
+function getWobbleSettings(spawnId) {
+  const seed = Number(spawnId.split('-')[1] || 0);
+  return {
+    durationMs: 1850 + (seed % 7) * 120,
+    delayMs: (seed % 5) * 85
+  };
+}
+
 export default function WubbleWebPage() {
   const { refreshUser } = useAuth();
   const [phase, setPhase] = useState('setup');
@@ -345,6 +366,8 @@ export default function WubbleWebPage() {
 
             {activeSpawns.map((spawn) => {
               const position = getBubblePosition({ spawn, elapsedMs });
+              const bubbleDimensions = getBubbleDimensions(spawn.wordText);
+              const wobble = getWobbleSettings(spawn.spawnId);
 
               return (
                 <button
@@ -356,8 +379,8 @@ export default function WubbleWebPage() {
                     bottom: `${position.bottom.toFixed(3)}%`,
                     transform: 'translate(-50%, 50%)',
                     borderRadius: '50%',
-                    width: 96,
-                    height: 96,
+                    width: bubbleDimensions.width,
+                    height: bubbleDimensions.height,
                     border: '2px solid #6a89aa',
                     background:
                       'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.98), rgba(255,255,255,0.86) 45%, rgba(186,223,255,0.72) 100%)',
@@ -366,12 +389,15 @@ export default function WubbleWebPage() {
                     cursor: 'pointer',
                     fontWeight: 600,
                     letterSpacing: 0.2,
-                    fontSize: 13,
-                    padding: 10,
+                    fontSize: bubbleDimensions.fontSize,
+                    padding: 12,
                     display: 'grid',
                     placeItems: 'center',
                     textAlign: 'center',
-                    lineHeight: 1.1
+                    lineHeight: 1.08,
+                    wordBreak: 'break-word',
+                    overflow: 'hidden',
+                    animation: `bubbleWobble ${wobble.durationMs}ms ease-in-out ${wobble.delayMs}ms infinite alternate`
                   }}
                 >
                   {spawn.wordText}
@@ -428,6 +454,10 @@ export default function WubbleWebPage() {
             @keyframes particleBurst {
               0% { opacity: 1; transform: translate(-50%, 50%); }
               100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(50% + var(--dy))); }
+            }
+            @keyframes bubbleWobble {
+              0% { transform: translate(-50%, 50%) scaleX(0.992) scaleY(1.008); }
+              100% { transform: translate(-50%, 50%) scaleX(1.008) scaleY(0.992); }
             }`}
           </style>
         </>
