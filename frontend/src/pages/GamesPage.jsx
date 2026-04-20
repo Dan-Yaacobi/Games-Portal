@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { gamesApi } from '../features/games/gamesApi';
-import PageFrame from '../components/ui/PageFrame';
-import GameCard from '../components/ui/GameCard';
 
 export default function GamesPage() {
   const [games, setGames] = useState([]);
@@ -15,16 +14,20 @@ export default function GamesPage() {
   }, []);
 
   return (
-    <PageFrame title="Game Selection" subtitle="Choose your arena and dive in.">
-      <div className="grid grid--cards">
+    <div>
+      <h1>Games</h1>
+      <p>Choose a game.</p>
+
+      <ul>
         {games.map((game) => (
-          <GameCard
-            key={game.id}
-            game={game}
-            playable={game.slug === 'wubble-web'}
-            to="/games/wubble-web"
-            description="Precision clicking challenge with fast category shifts."
-          />
+          <li key={game.id} style={{ marginBottom: 8 }}>
+            <strong>{game.name}</strong> ({game.slug}){' '}
+            {game.slug === 'wubble-web' ? (
+              <Link to="/games/wubble-web">Play</Link>
+            ) : (
+              <span>Coming soon</span>
+            )}
+          </li>
         ))}
       </div>
       {status && <p className="status-error">{status}</p>}

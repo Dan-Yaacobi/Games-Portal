@@ -32,6 +32,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+
         <Route
           path="/games/wubble-web"
           element={
@@ -40,6 +42,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/test-game"
           element={
