@@ -18,7 +18,7 @@ function getBubblePosition({ spawn, elapsedMs }) {
   const sway = Math.sin((elapsedMs + Number(spawn.spawnId.split('-')[1] || 0) * 30) / 720) * 0.7;
 
   return {
-    bottom: Math.round(easedProgress * 102),
+    bottom: Math.min(102, easedProgress * 102),
     left: Math.min(92, Math.max(8, spawn.xStartNormalized * 100 + sway))
   };
 }
@@ -48,6 +48,7 @@ export default function WubbleWebPage() {
   const [provisionalScore, setProvisionalScore] = useState(0);
   const [countdown, setCountdown] = useState(3);
   const [promptPulse, setPromptPulse] = useState(false);
+  const [promptNotice, setPromptNotice] = useState(false);
   const [scorePulse, setScorePulse] = useState('none');
   const [popEffects, setPopEffects] = useState([]);
   const [particles, setParticles] = useState([]);
@@ -85,8 +86,13 @@ export default function WubbleWebPage() {
     if (prevPromptSlugRef.current !== activePrompt.categorySlug) {
       prevPromptSlugRef.current = activePrompt.categorySlug;
       setPromptPulse(true);
-      const timeout = window.setTimeout(() => setPromptPulse(false), 280);
-      return () => window.clearTimeout(timeout);
+      setPromptNotice(true);
+      const timeout = window.setTimeout(() => setPromptPulse(false), 360);
+      const noticeTimeout = window.setTimeout(() => setPromptNotice(false), 900);
+      return () => {
+        window.clearTimeout(timeout);
+        window.clearTimeout(noticeTimeout);
+      };
     }
 
     return undefined;
@@ -266,12 +272,30 @@ export default function WubbleWebPage() {
                 color: '#123555',
                 background: 'linear-gradient(90deg, rgba(247,252,255,1), rgba(218,236,255,1))',
                 boxShadow: '0 3px 10px rgba(28, 86, 139, 0.2)',
-                transform: promptPulse ? 'scale(1.06)' : 'scale(1)',
-                transition: 'transform 180ms ease-out'
+                transform: promptPulse ? 'scale(1.14)' : 'scale(1)',
+                filter: promptPulse ? 'drop-shadow(0 0 12px rgba(36,149,255,0.55))' : 'none',
+                transition: 'transform 220ms ease-out, filter 220ms ease-out'
               }}
             >
               Prompt: {activePrompt?.label || '...'}
             </strong>
+
+            {promptNotice && (
+              <span
+                style={{
+                  background: '#1f8fff',
+                  color: 'white',
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  padding: '4px 10px',
+                  letterSpacing: 0.4,
+                  boxShadow: '0 4px 14px rgba(31,143,255,0.45)'
+                }}
+              >
+                NEW PROMPT!
+              </span>
+            )}
+
             <span>Time left: {remainingSeconds}s</span>
             <span
               style={{
@@ -329,7 +353,7 @@ export default function WubbleWebPage() {
                   style={{
                     position: 'absolute',
                     left: `${position.left}%`,
-                    bottom: `${position.bottom}%`,
+                    bottom: `${position.bottom.toFixed(3)}%`,
                     transform: 'translate(-50%, 50%)',
                     borderRadius: '50%',
                     width: 96,
