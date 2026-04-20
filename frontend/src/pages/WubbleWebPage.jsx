@@ -20,6 +20,13 @@ function getPromptAtMs(schedule, elapsedMs) {
   return schedule.find((prompt) => elapsedMs >= prompt.startsAtMs && elapsedMs < prompt.endsAtMs) || null;
 }
 
+function getEffectiveSpawnTiming(spawn) {
+  const promptPrepOffset = spawn.promptIndexAtSpawn > 0 ? PROMPT_PREP_MS : 0;
+  const appearsAtMs = spawn.appearsAtMs + promptPrepOffset;
+  const expiresAtMs = spawn.expiresAtMs + promptPrepOffset;
+  return { appearsAtMs, expiresAtMs };
+}
+
 function getBubblePosition({ spawn, elapsedMs }) {
   const rawProgress = Math.min(
     1,
@@ -123,8 +130,9 @@ export default function WubbleWebPage() {
     if (!sessionData || !activePrompt) return [];
 
     return sessionData.spawnPlan.filter((spawn) => {
-      const prepDone = elapsedMs >= activePrompt.startsAtMs + PROMPT_PREP_MS;
-      const inWindow = prepDone && elapsedMs >= spawn.appearsAtMs && elapsedMs <= spawn.expiresAtMs;
+      const prepDone = activePrompt.promptIndex === 0 || elapsedMs >= activePrompt.startsAtMs + PROMPT_PREP_MS;
+      const timing = getEffectiveSpawnTiming(spawn);
+      const inWindow = prepDone && elapsedMs >= timing.appearsAtMs && elapsedMs <= timing.expiresAtMs;
       if (!inWindow || clickedIds.has(spawn.spawnId)) return false;
 
       const isFromPriorPrompt = spawn.appearsAtMs < activePrompt.startsAtMs;
@@ -524,7 +532,7 @@ export default function WubbleWebPage() {
             )}
 
 
-            {phase === 'playing' && elapsedMs < activePrompt.startsAtMs + PROMPT_PREP_MS && (
+            {phase === 'playing' && activePrompt.promptIndex > 0 && elapsedMs < activePrompt.startsAtMs + PROMPT_PREP_MS && (
               <div
                 style={{
                   position: 'absolute',
@@ -544,7 +552,11 @@ export default function WubbleWebPage() {
             )}
 
             {activeSpawns.map((spawn) => {
-              const position = getBubblePosition({ spawn, elapsedMs });
+              const timing = getEffectiveSpawnTiming(spawn);
+              const position = getBubblePosition({
+                spawn: { ...spawn, appearsAtMs: timing.appearsAtMs, travelDurationMs: timing.expiresAtMs - timing.appearsAtMs },
+                elapsedMs
+              });
               const bubbleDimensions = getBubbleDimensions(spawn.wordText);
               const wobble = getWobbleSettings(spawn.spawnId);
 

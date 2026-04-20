@@ -1,9 +1,19 @@
+const PROMPT_PREP_MS = 3000;
+
 function getPromptAtMs(promptSchedule, timestampMs) {
   return promptSchedule.find((prompt) => timestampMs >= prompt.startsAtMs && timestampMs < prompt.endsAtMs);
 }
 
 function getComboMultiplier(correctStreak) {
   return 2 ** Math.floor(correctStreak / 10);
+}
+
+function getEffectiveSpawnTiming(spawn) {
+  const promptPrepOffset = spawn.promptIndexAtSpawn > 0 ? PROMPT_PREP_MS : 0;
+  return {
+    appearsAtMs: spawn.appearsAtMs + promptPrepOffset,
+    expiresAtMs: spawn.expiresAtMs + promptPrepOffset
+  };
 }
 
 export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSeconds, eventLog }) {
@@ -45,7 +55,8 @@ export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSe
       continue;
     }
 
-    if (timestampMs < spawn.appearsAtMs || timestampMs > spawn.expiresAtMs) {
+    const timing = getEffectiveSpawnTiming(spawn);
+    if (timestampMs < timing.appearsAtMs || timestampMs > timing.expiresAtMs) {
       rejectedClicks += 1;
       continue;
     }
