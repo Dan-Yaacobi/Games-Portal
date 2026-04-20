@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "migrate": "node src/db/runMigrations.js"
+    "migrate": "node src/db/runMigrations.js",
+    "test": "node --test"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

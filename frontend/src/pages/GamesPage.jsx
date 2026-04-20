@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { gamesApi } from '../features/games/gamesApi';
-import { useAuth } from '../hooks/useAuth';
 
 export default function GamesPage() {
-  const { refreshUser } = useAuth();
   const [games, setGames] = useState([]);
   const [status, setStatus] = useState('');
 
@@ -14,38 +13,20 @@ export default function GamesPage() {
       .catch((error) => setStatus(error.message));
   }, []);
 
-  const playPlaceholderGame = async (gameId) => {
-    try {
-      setStatus('Starting game session...');
-      const startData = await gamesApi.start(gameId);
-
-      // Placeholder score generation until actual games are integrated.
-      const simulatedScore = Math.floor(Math.random() * 1000);
-
-      const completeData = await gamesApi.complete(gameId, {
-        sessionId: startData.session.id,
-        score: simulatedScore
-      });
-
-      await refreshUser();
-      setStatus(
-        `Finished game. Score: ${simulatedScore}, coins awarded: ${completeData.awarded}, balance: ${completeData.balance}`
-      );
-    } catch (error) {
-      setStatus(error.message);
-    }
-  };
-
   return (
     <div>
       <h1>Games</h1>
-      <p>Choose a game and run the placeholder play flow.</p>
+      <p>Choose a game.</p>
 
       <ul>
         {games.map((game) => (
-          <li key={game.id}>
+          <li key={game.id} style={{ marginBottom: 8 }}>
             <strong>{game.name}</strong> ({game.slug}){' '}
-            <button onClick={() => playPlaceholderGame(game.id)}>Play</button>
+            {game.slug === 'wubble-web' ? (
+              <Link to="/games/wubble-web">Play</Link>
+            ) : (
+              <span>Coming soon</span>
+            )}
           </li>
         ))}
       </ul>
