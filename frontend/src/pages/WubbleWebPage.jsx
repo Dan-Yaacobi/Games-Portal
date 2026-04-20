@@ -696,21 +696,52 @@ export default function WubbleWebPage() {
               0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
               18% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
               100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+            }
+            @keyframes resultBubbleHue {
+              0% { filter: hue-rotate(0deg); }
+              100% { filter: hue-rotate(360deg); }
             }`}
           </style>
         </>
       )}
 
       {phase === 'done' && result && (
-        <div style={{ marginTop: 16 }}>
-          <h2>Round complete</h2>
-          <p>Validated score: {result.validatedScore}</p>
-          <p>Coins earned: {result.coinsEarned}</p>
-          <p>Total coins: {result.totalCoins}</p>
-          <p>Correct clicks: {result.validationSummary?.correctClicks ?? correctClicks}</p>
-          <p>Wrong clicks: {result.validationSummary?.wrongClicks ?? wrongClicks}</p>
-          <p>Best combo streak: {result.validationSummary?.maxCorrectStreak ?? comboStreak}</p>
-          <button onClick={() => setPhase('setup')}>Play again</button>
+        <div
+          style={{
+            marginTop: 22,
+            display: 'grid',
+            placeItems: 'center'
+          }}
+        >
+          <div
+            style={{
+              width: 'min(520px, 92vw)',
+              borderRadius: '50%',
+              padding: 14,
+              background: 'conic-gradient(from 0deg, #68d2ff, #8f8bff, #ff7fbe, #ffd06a, #68d2ff)',
+              animation: 'resultBubbleHue 8s linear infinite'
+            }}
+          >
+            <div
+              style={{
+                borderRadius: '48%',
+                background: 'radial-gradient(circle at 26% 20%, #ffffff, #d9ecff 72%)',
+                border: '2px solid rgba(87, 147, 212, 0.6)',
+                boxShadow: '0 14px 30px rgba(31, 95, 163, 0.24), inset 0 8px 18px rgba(255,255,255,0.6)',
+                padding: '24px 28px',
+                textAlign: 'center'
+              }}
+            >
+              <h2 style={{ marginTop: 0, marginBottom: 14, color: '#123b63' }}>Round Complete ✨</h2>
+              <p><strong>Validated score:</strong> {result.validatedScore}</p>
+              <p><strong>Coins earned:</strong> {result.coinsEarned}</p>
+              <p><strong>Total coins:</strong> {result.totalCoins}</p>
+              <p><strong>Correct clicks:</strong> {result.validationSummary?.correctClicks ?? correctClicks}</p>
+              <p><strong>Wrong clicks:</strong> {result.validationSummary?.wrongClicks ?? wrongClicks}</p>
+              <p><strong>Best combo streak:</strong> {result.validationSummary?.maxCorrectStreak ?? comboStreak}</p>
+              <button onClick={() => setPhase('setup')}>Play again</button>
+            </div>
+          </div>
         </div>
       )}
 
