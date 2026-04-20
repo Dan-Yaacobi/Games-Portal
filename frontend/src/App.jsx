@@ -10,7 +10,7 @@ import WubbleWebPage from './pages/WubbleWebPage';
 
 export default function App() {
   return (
-    <div style={{ padding: 16, fontFamily: 'sans-serif' }}>
+    <div className="app-shell">
       <NavBar />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -32,8 +32,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
-
         <Route
           path="/games/wubble-web"
           element={
@@ -42,7 +40,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/test-game"
           element={

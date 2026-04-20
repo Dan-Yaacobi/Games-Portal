@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { wubbleApi } from '../features/games/wubbleApi';
 import { useAuth } from '../hooks/useAuth';
+import PageFrame from '../components/ui/PageFrame';
+import Panel from '../components/ui/Panel';
+import PixelButton from '../components/ui/PixelButton';
 
 const WORD_DIFFICULTIES = ['easy', 'medium', 'hard'];
 const SPEED_DIFFICULTIES = ['normal', 'fast', 'extreme', 'usain_bolt'];
@@ -475,119 +478,88 @@ export default function WubbleWebPage() {
     : 0;
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto' }}>
-      <h1>Wubble Web</h1>
-
+    <PageFrame title="Wubble Web" subtitle="Pop only the words that match the current prompt.">
       {phase === 'setup' && (
-        <div style={{ display: 'grid', gap: 12, maxWidth: 420 }}>
-          <label>
-            Word difficulty
-            <select value={wordDifficulty} onChange={(event) => setWordDifficulty(event.target.value)}>
-              {WORD_DIFFICULTIES.map((difficulty) => (
-                <option key={difficulty} value={difficulty}>
-                  {formatDifficultyLabel(difficulty)}
-                </option>
-              ))}
-            </select>
-          </label>
+        <Panel>
+          <div className="form-grid" style={{ maxWidth: 460 }}>
+            <label>
+              Word difficulty
+              <select value={wordDifficulty} onChange={(event) => setWordDifficulty(event.target.value)}>
+                {WORD_DIFFICULTIES.map((difficulty) => (
+                  <option key={difficulty} value={difficulty}>
+                    {formatDifficultyLabel(difficulty)}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label>
-            Speed difficulty
-            <select value={speedDifficulty} onChange={(event) => setSpeedDifficulty(event.target.value)}>
-              {SPEED_DIFFICULTIES.map((difficulty) => (
-                <option key={difficulty} value={difficulty}>
-                  {formatDifficultyLabel(difficulty)}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label>
+              Speed difficulty
+              <select value={speedDifficulty} onChange={(event) => setSpeedDifficulty(event.target.value)}>
+                {SPEED_DIFFICULTIES.map((difficulty) => (
+                  <option key={difficulty} value={difficulty}>
+                    {formatDifficultyLabel(difficulty)}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label>
-            Game duration
-            <select value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))}>
-              {DURATION_OPTIONS.map((duration) => (
-                <option key={duration} value={duration}>
-                  {duration} seconds
-                </option>
-              ))}
-            </select>
-          </label>
+            <label>
+              Game duration
+              <select value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))}>
+                {DURATION_OPTIONS.map((duration) => (
+                  <option key={duration} value={duration}>
+                    {duration} seconds
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <button onClick={startGame}>Start Wubble Web</button>
-        </div>
+            <PixelButton onClick={startGame}>Start Wubble Web</PixelButton>
+          </div>
+        </Panel>
       )}
 
       {(phase === 'countdown' || phase === 'playing' || phase === 'submitting') && sessionData && (
         <>
-          <div
-            style={{
-              display: 'flex',
-              gap: 20,
-              marginBottom: 12,
-              alignItems: 'center',
-              flexWrap: 'nowrap',
-              whiteSpace: 'nowrap',
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              scrollbarWidth: 'none'
-            }}
-          >
-            <strong
-              style={{
-                fontSize: 24,
-                padding: '6px 14px',
-                borderRadius: 12,
-                color: '#123555',
-                background: 'linear-gradient(90deg, rgba(247,252,255,1), rgba(218,236,255,1))',
-                boxShadow: '0 3px 10px rgba(28, 86, 139, 0.2)',
-                transform: promptPulse ? 'scale(1.14)' : 'scale(1)',
-                filter: promptPulse ? 'drop-shadow(0 0 12px rgba(36,149,255,0.55))' : 'none',
-                transition: 'transform 220ms ease-out, filter 220ms ease-out',
-                flex: '0 0 auto'
-              }}
-            >
+          <div className="hud">
+            <div className={`hud-item hud-item--prompt ${promptPulse ? 'prompt-live' : ''}`}>
+              <strong>Prompt</strong>
               {activePrompt?.label || '...'}
-            </strong>
-
-            <span style={{ flex: '0 0 auto' }}>Time left: {remainingSeconds}s</span>
-            <span
+            </div>
+            <div className="hud-item">
+              <strong>Time Left</strong>
+              {remainingSeconds}s
+            </div>
+            <div
               ref={scoreRef}
+              className="hud-item"
               style={{
-                fontWeight: 700,
-                color: scorePulse === 'negative' ? '#df3652' : '#1e4568',
-                transform:
-                  scorePulse === 'positive' ? 'scale(1.14)' : scorePulse === 'negative' ? 'scale(0.92)' : 'scale(1)',
-                transition: 'transform 130ms ease-out, color 130ms ease-out',
-                flex: '0 0 auto'
+                color: scorePulse === 'negative' ? '#ff496e' : undefined,
+                transform: scorePulse === 'positive' ? 'scale(1.08)' : scorePulse === 'negative' ? 'scale(0.96)' : 'scale(1)'
               }}
             >
-              Score: {provisionalScore}
-            </span>
-            <span
+              <strong>Score</strong>
+              {provisionalScore}
+            </div>
+            <div
+              className="hud-item"
               style={{
-                fontWeight: 800,
                 color: getComboTierColor(getComboTier(comboStreak)),
-                textShadow:
-                  comboStreak > 0
-                    ? `0 0 14px ${getComboTierColor(getComboTier(comboStreak))}`
-                    : 'none',
-                transform: comboPulse ? 'scale(1.16)' : 'scale(1)',
-                transition: 'transform 120ms ease-out',
-                flex: '0 0 auto'
+                textShadow: comboStreak > 0 ? `0 0 14px ${getComboTierColor(getComboTier(comboStreak))}` : 'none',
+                transform: comboPulse ? 'scale(1.07)' : 'scale(1)'
               }}
             >
-              Combo: {comboStreak} (x{getComboMultiplier(comboStreak)})
-            </span>
+              <strong>Combo</strong>
+              {comboStreak} (x{getComboMultiplier(comboStreak)})
+            </div>
           </div>
 
           <div
             ref={gameContainerRef}
+            className="play-arena"
             style={{
-              height: 460,
-              border: wrongFlash ? '2px solid #ff6d80' : '1px solid #9dc7ef',
-              borderRadius: 14,
-              position: 'relative',
-              overflow: 'hidden',
+              borderColor: wrongFlash ? '#ff496e' : '#4e679d',
               background: wrongFlash
                 ? 'radial-gradient(circle at 20% 20%, #ffe8ec, #ffd0d8 70%)'
                 : `radial-gradient(circle at 20% 20%, ${GAME_BG_PALETTE[previousThemeIndex][0]}, ${GAME_BG_PALETTE[previousThemeIndex][1]} 70%)`,
@@ -685,21 +657,12 @@ export default function WubbleWebPage() {
                 <button
                   key={spawn.spawnId}
                   onClick={() => clickBubble(spawn)}
+                  className="arena-bubble"
                   style={{
-                    position: 'absolute',
                     left: `${position.left}%`,
                     bottom: `${position.bottom.toFixed(3)}%`,
-                    transform: 'translate(-50%, 50%)',
-                    borderRadius: '50%',
                     width: bubbleDimensions.width,
                     height: bubbleDimensions.height,
-                    border: '2px solid #6a89aa',
-                    background:
-                      'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.98), rgba(255,255,255,0.86) 45%, rgba(186,223,255,0.72) 100%)',
-                    color: '#173049',
-                    boxShadow: '0 8px 16px rgba(35, 87, 134, 0.16), inset 0 6px 10px rgba(255,255,255,0.5)',
-                    cursor: 'pointer',
-                    fontWeight: 600,
                     letterSpacing: 0.2,
                     fontSize: bubbleDimensions.fontSize,
                     padding: 12,
@@ -708,7 +671,6 @@ export default function WubbleWebPage() {
                     textAlign: 'center',
                     lineHeight: 1.08,
                     wordBreak: 'break-word',
-                    overflow: 'hidden',
                     animation: `bubbleWobble ${wobble.durationMs}ms ease-in-out ${wobble.delayMs}ms infinite alternate`
                   }}
                 >
@@ -842,13 +804,13 @@ export default function WubbleWebPage() {
               <p><strong>Wrong clicks:</strong> {result.validationSummary?.wrongClicks ?? wrongClicks}</p>
               <p><strong>Missed correct bubbles:</strong> {result.validationSummary?.missedCorrectCount ?? missedCorrectClicks}</p>
               <p><strong>Best combo streak:</strong> {result.validationSummary?.maxCorrectStreak ?? comboStreak}</p>
-              <button onClick={() => setPhase('setup')}>Play again</button>
+              <PixelButton onClick={() => setPhase('setup')}>Play again</PixelButton>
             </div>
           </div>
         </div>
       )}
 
-      {status && <p>{status}</p>}
-    </div>
+      {status && <p className="status-error">{status}</p>}
+    </PageFrame>
   );
 }
