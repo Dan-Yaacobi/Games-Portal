@@ -16,6 +16,11 @@ export async function getActiveGames() {
   return result.rows;
 }
 
+export async function getGameBySlug(slug) {
+  const result = await query('SELECT id, name, slug, is_active FROM games WHERE slug = $1 LIMIT 1', [slug]);
+  return result.rows[0] || null;
+}
+
 export async function startOrGetSession({ userId, gameId }) {
   const gameResult = await query('SELECT id, is_active FROM games WHERE id = $1', [gameId]);
 
@@ -83,83 +88,78 @@ export async function completeSession({ userId, gameId, sessionId, score }) {
 
   try {
     await client.query('BEGIN');
+    const result = await completeSessionInTransaction({ userId, gameId, sessionId, score, client });
 
-    const sessionResult = await client.query(
-      `SELECT id, user_id, game_id, ended_at
-       FROM game_sessions
-       WHERE id = $1 AND game_id = $2
-       FOR UPDATE`,
-      [sessionId, gameId]
-    );
-
-    if (!sessionResult.rowCount) {
+    if (result.status !== 200) {
       await client.query('ROLLBACK');
-      console.log('[games.complete] rejected: session not found', { userId, gameId, sessionId });
-      return { status: 404, body: { message: 'Session not found' } };
+      return result;
     }
-
-    const session = sessionResult.rows[0];
-
-    if (session.user_id !== userId) {
-      await client.query('ROLLBACK');
-      console.log('[games.complete] rejected: forbidden session access', {
-        userId,
-        gameId,
-        sessionId,
-        ownerId: session.user_id
-      });
-      return { status: 403, body: { message: 'Forbidden session access' } };
-    }
-
-    if (session.ended_at) {
-      await client.query('ROLLBACK');
-      console.log('[games.complete] rejected: session already completed', { userId, gameId, sessionId });
-      return { status: 400, body: { message: 'Session already completed' } };
-    }
-
-    const coinsEarned = calculateCoins(score);
-
-    const updatedSessionResult = await client.query(
-      `UPDATE game_sessions
-       SET score = $1, coins_earned = $2, ended_at = NOW()
-       WHERE id = $3 AND ended_at IS NULL
-       RETURNING id, score, coins_earned`,
-      [score, coinsEarned, sessionId]
-    );
-
-    if (!updatedSessionResult.rowCount) {
-      await client.query('ROLLBACK');
-      console.log('[games.complete] rejected: concurrent completion detected', { userId, gameId, sessionId });
-      return { status: 400, body: { message: 'Session already completed' } };
-    }
-
-    const totalCoins = await awardCoins({
-      userId,
-      amount: coinsEarned,
-      reason: 'game_reward',
-      metadata: { gameId, sessionId, score },
-      client
-    });
 
     await client.query('COMMIT');
-
-    console.log('[games.complete] success', { userId, gameId, sessionId, score, coinsEarned, totalCoins });
-
-    return {
-      status: 200,
-      body: {
-        sessionId: updatedSessionResult.rows[0].id,
-        score: updatedSessionResult.rows[0].score,
-        coinsEarned: updatedSessionResult.rows[0].coins_earned,
-        totalCoins
-      }
-    };
+    return result;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();
   }
+}
+
+export async function completeSessionInTransaction({ userId, gameId, sessionId, score, client }) {
+  const sessionResult = await client.query(
+    `SELECT id, user_id, game_id, ended_at
+     FROM game_sessions
+     WHERE id = $1 AND game_id = $2
+     FOR UPDATE`,
+    [sessionId, gameId]
+  );
+
+  if (!sessionResult.rowCount) {
+    return { status: 404, body: { message: 'Session not found' } };
+  }
+
+  const session = sessionResult.rows[0];
+
+  if (session.user_id !== userId) {
+    return { status: 403, body: { message: 'Forbidden session access' } };
+  }
+
+  if (session.ended_at) {
+    return { status: 400, body: { message: 'Session already completed' } };
+  }
+
+  const boundedScore = Math.min(MAX_SCORE, Math.max(0, Math.floor(score)));
+  const coinsEarned = calculateCoins(boundedScore);
+
+  const updatedSessionResult = await client.query(
+    `UPDATE game_sessions
+     SET score = $1, coins_earned = $2, ended_at = NOW()
+     WHERE id = $3 AND ended_at IS NULL
+     RETURNING id, score, coins_earned`,
+    [boundedScore, coinsEarned, sessionId]
+  );
+
+  if (!updatedSessionResult.rowCount) {
+    return { status: 400, body: { message: 'Session already completed' } };
+  }
+
+  const totalCoins = await awardCoins({
+    userId,
+    amount: coinsEarned,
+    reason: 'game_reward',
+    metadata: { gameId, sessionId, score: boundedScore },
+    client
+  });
+
+  return {
+    status: 200,
+    body: {
+      sessionId: updatedSessionResult.rows[0].id,
+      score: updatedSessionResult.rows[0].score,
+      coinsEarned: updatedSessionResult.rows[0].coins_earned,
+      totalCoins
+    }
+  };
 }
 
 function mapStartResponse(session) {
