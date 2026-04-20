@@ -418,7 +418,19 @@ export default function WubbleWebPage() {
 
       {(phase === 'countdown' || phase === 'playing' || phase === 'submitting') && sessionData && (
         <>
-          <div style={{ display: 'flex', gap: 20, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 20,
+              marginBottom: 12,
+              alignItems: 'center',
+              flexWrap: 'nowrap',
+              whiteSpace: 'nowrap',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              scrollbarWidth: 'none'
+            }}
+          >
             <strong
               style={{
                 fontSize: 24,
@@ -429,13 +441,14 @@ export default function WubbleWebPage() {
                 boxShadow: '0 3px 10px rgba(28, 86, 139, 0.2)',
                 transform: promptPulse ? 'scale(1.14)' : 'scale(1)',
                 filter: promptPulse ? 'drop-shadow(0 0 12px rgba(36,149,255,0.55))' : 'none',
-                transition: 'transform 220ms ease-out, filter 220ms ease-out'
+                transition: 'transform 220ms ease-out, filter 220ms ease-out',
+                flex: '0 0 auto'
               }}
             >
               Prompt: {activePrompt?.label || '...'}
             </strong>
 
-            <span>Time left: {remainingSeconds}s</span>
+            <span style={{ flex: '0 0 auto' }}>Time left: {remainingSeconds}s</span>
             <span
               ref={scoreRef}
               style={{
@@ -443,7 +456,8 @@ export default function WubbleWebPage() {
                 color: scorePulse === 'negative' ? '#df3652' : '#1e4568',
                 transform:
                   scorePulse === 'positive' ? 'scale(1.14)' : scorePulse === 'negative' ? 'scale(0.92)' : 'scale(1)',
-                transition: 'transform 130ms ease-out, color 130ms ease-out'
+                transition: 'transform 130ms ease-out, color 130ms ease-out',
+                flex: '0 0 auto'
               }}
             >
               Score: {provisionalScore}
@@ -457,7 +471,8 @@ export default function WubbleWebPage() {
                     ? `0 0 14px ${getComboTierColor(getComboTier(comboStreak))}`
                     : 'none',
                 transform: comboPulse ? 'scale(1.16)' : 'scale(1)',
-                transition: 'transform 120ms ease-out'
+                transition: 'transform 120ms ease-out',
+                flex: '0 0 auto'
               }}
             >
               Combo: {comboStreak} (x{getComboMultiplier(comboStreak)})
