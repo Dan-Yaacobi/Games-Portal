@@ -9,6 +9,20 @@ function getPromptAtMs(schedule, elapsedMs) {
   return schedule.find((prompt) => elapsedMs >= prompt.startsAtMs && elapsedMs < prompt.endsAtMs) || null;
 }
 
+function getBubblePosition({ spawn, elapsedMs }) {
+  const rawProgress = Math.min(
+    1,
+    Math.max(0, (elapsedMs - spawn.appearsAtMs) / Math.max(1, spawn.travelDurationMs))
+  );
+  const easedProgress = 1 - (1 - rawProgress) ** 1.45;
+  const sway = Math.sin((elapsedMs + Number(spawn.spawnId.split('-')[1] || 0) * 70) / 220) * 2.8;
+
+  return {
+    bottom: Math.round(easedProgress * 100),
+    left: Math.min(92, Math.max(8, spawn.xStartNormalized * 100 + sway))
+  };
+}
+
 export default function WubbleWebPage() {
   const { refreshUser } = useAuth();
   const [phase, setPhase] = useState('setup');
@@ -34,9 +48,14 @@ export default function WubbleWebPage() {
 
     return sessionData.spawnPlan.filter((spawn) => {
       const inWindow = elapsedMs >= spawn.appearsAtMs && elapsedMs <= spawn.expiresAtMs;
-      if (!inWindow) return false;
-      if (clickedIds.has(spawn.spawnId)) return false;
-      return spawn.wordCategories.includes(activePrompt.categorySlug);
+      if (!inWindow || clickedIds.has(spawn.spawnId)) return false;
+
+      const isFromPriorPrompt = spawn.appearsAtMs < activePrompt.startsAtMs;
+      if (isFromPriorPrompt) {
+        return spawn.wordCategories.includes(activePrompt.categorySlug);
+      }
+
+      return true;
     });
   }, [sessionData, elapsedMs, clickedIds, activePrompt]);
 
@@ -51,7 +70,7 @@ export default function WubbleWebPage() {
       if (nextElapsed >= sessionData.durationSeconds * 1000) {
         setPhase('submitting');
       }
-    }, 50);
+    }, 33);
 
     return () => {
       if (loopRef.current) window.clearInterval(loopRef.current);
@@ -121,7 +140,7 @@ export default function WubbleWebPage() {
     : 0;
 
   return (
-    <div>
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
       <h1>Wubble Web</h1>
 
       {phase === 'setup' && (
@@ -154,27 +173,28 @@ export default function WubbleWebPage() {
 
       {(phase === 'playing' || phase === 'submitting') && sessionData && (
         <>
-          <div style={{ display: 'flex', gap: 20, marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 20, marginBottom: 12, flexWrap: 'wrap' }}>
             <strong>Prompt: {activePrompt?.label || '...'}</strong>
             <span>Time left: {remainingSeconds}s</span>
             <span>Provisional score: {provisionalScore}</span>
+            <span>Bubbles: {activeSpawns.length}</span>
           </div>
 
           <div
             style={{
               height: 460,
-              border: '1px solid #ccc',
-              borderRadius: 12,
+              border: '1px solid #9dc7ef',
+              borderRadius: 14,
               position: 'relative',
               overflow: 'hidden',
-              background: 'linear-gradient(#f7fbff, #d9ecff)'
+              background: 'radial-gradient(circle at 20% 20%, #f8fdff, #cde7ff 70%)'
             }}
           >
             {activeSpawns.map((spawn) => {
-              const progress = Math.min(
-                1,
-                Math.max(0, (elapsedMs - spawn.appearsAtMs) / Math.max(1, spawn.travelDurationMs))
-              );
+              const position = getBubblePosition({ spawn, elapsedMs });
+              const isCorrectNow = activePrompt
+                ? spawn.wordCategories.includes(activePrompt.categorySlug)
+                : false;
 
               return (
                 <button
@@ -182,14 +202,20 @@ export default function WubbleWebPage() {
                   onClick={() => clickBubble(spawn)}
                   style={{
                     position: 'absolute',
-                    left: `${Math.min(90, Math.max(0, spawn.xStartNormalized * 100))}%`,
-                    bottom: `${Math.round(progress * 100)}%`,
-                    transform: 'translateX(-50%)',
+                    left: `${position.left}%`,
+                    bottom: `${position.bottom}%`,
+                    transform: 'translate(-50%, 50%)',
                     borderRadius: 999,
-                    border: '1px solid #335',
-                    background: '#fff',
-                    padding: '8px 12px',
-                    cursor: 'pointer'
+                    border: isCorrectNow ? '2px solid #5da9f5' : '2px solid #7d93b0',
+                    background:
+                      'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.98), rgba(255,255,255,0.82) 45%, rgba(186,223,255,0.75) 100%)',
+                    color: '#173049',
+                    padding: '10px 15px',
+                    minWidth: 88,
+                    boxShadow: '0 8px 16px rgba(35, 87, 134, 0.18), inset 0 6px 10px rgba(255,255,255,0.45)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    letterSpacing: 0.2
                   }}
                 >
                   {spawn.wordText}
