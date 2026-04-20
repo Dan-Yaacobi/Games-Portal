@@ -2,9 +2,14 @@ function getPromptAtMs(promptSchedule, timestampMs) {
   return promptSchedule.find((prompt) => timestampMs >= prompt.startsAtMs && timestampMs < prompt.endsAtMs);
 }
 
+function getComboMultiplier(correctStreak) {
+  return 2 ** Math.floor(correctStreak / 5);
+}
+
 export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSeconds, eventLog }) {
   const spawnById = new Map(spawnPlan.map((spawn) => [spawn.spawnId, spawn]));
   const clickedSpawnIds = new Set();
+  const orderedEvents = [...eventLog].sort((a, b) => a.timestampMs - b.timestampMs);
 
   let finalScore = 0;
   let acceptedClicks = 0;
@@ -12,8 +17,13 @@ export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSe
   let duplicateClickCount = 0;
   let outOfRangeTimestampCount = 0;
   let unknownSpawnCount = 0;
+  let correctClicks = 0;
+  let wrongClicks = 0;
+  let currentCorrectStreak = 0;
+  let maxCorrectStreak = 0;
+  let highestComboMultiplier = 1;
 
-  for (const event of eventLog) {
+  for (const event of orderedEvents) {
     const timestampMs = event.timestampMs;
 
     if (timestampMs < 0 || timestampMs > durationSeconds * 1000) {
@@ -45,7 +55,19 @@ export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSe
     const activePrompt = getPromptAtMs(promptSchedule, timestampMs);
     const isCorrect = Boolean(activePrompt && spawn.wordCategories.includes(activePrompt.categorySlug));
 
-    finalScore += isCorrect ? 1 : -1;
+    if (isCorrect) {
+      const points = getComboMultiplier(currentCorrectStreak);
+      finalScore += points;
+      correctClicks += 1;
+      currentCorrectStreak += 1;
+      maxCorrectStreak = Math.max(maxCorrectStreak, currentCorrectStreak);
+      highestComboMultiplier = Math.max(highestComboMultiplier, points);
+    } else {
+      finalScore -= 1;
+      wrongClicks += 1;
+      currentCorrectStreak = 0;
+    }
+
     acceptedClicks += 1;
   }
 
@@ -58,6 +80,10 @@ export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSe
       duplicateClickCount,
       outOfRangeTimestampCount,
       unknownSpawnCount,
+      correctClicks,
+      wrongClicks,
+      maxCorrectStreak,
+      highestComboMultiplier,
       finalScore
     }
   };

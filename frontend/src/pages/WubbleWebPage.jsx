@@ -49,6 +49,10 @@ function getBubbleDimensions(wordText) {
   };
 }
 
+function getComboMultiplier(correctStreak) {
+  return 2 ** Math.floor(correctStreak / 5);
+}
+
 function getWobbleSettings(spawnId) {
   const seed = Number(spawnId.split('-')[1] || 0);
   return {
@@ -71,6 +75,10 @@ export default function WubbleWebPage() {
   const [promptPulse, setPromptPulse] = useState(false);
   const [promptNotice, setPromptNotice] = useState(false);
   const [scorePulse, setScorePulse] = useState('none');
+  const [comboStreak, setComboStreak] = useState(0);
+  const [comboPulse, setComboPulse] = useState(false);
+  const [correctClicks, setCorrectClicks] = useState(0);
+  const [wrongClicks, setWrongClicks] = useState(0);
   const [popEffects, setPopEffects] = useState([]);
   const [particles, setParticles] = useState([]);
   const [wrongFlash, setWrongFlash] = useState(false);
@@ -197,6 +205,10 @@ export default function WubbleWebPage() {
       setPopEffects([]);
       setParticles([]);
       setWrongFlash(false);
+      setComboStreak(0);
+      setCorrectClicks(0);
+      setWrongClicks(0);
+      setComboPulse(false);
       prevPromptSlugRef.current = null;
 
       const data = await wubbleApi.start({ wordDifficulty, speedDifficulty });
@@ -211,7 +223,9 @@ export default function WubbleWebPage() {
     if (!activePrompt || clickedIds.has(spawn.spawnId)) return;
 
     const isCorrect = spawn.wordCategories.includes(activePrompt.categorySlug);
-    setProvisionalScore((value) => value + (isCorrect ? 1 : -1));
+    const comboMultiplier = getComboMultiplier(comboStreak);
+    const scoreDelta = isCorrect ? comboMultiplier : -1;
+    setProvisionalScore((value) => value + scoreDelta);
     setClickedIds((current) => new Set(current).add(spawn.spawnId));
     setEventLog((current) => [
       ...current,
@@ -232,15 +246,26 @@ export default function WubbleWebPage() {
 
     if (isCorrect) {
       const effectId = `${spawn.spawnId}-${elapsedMs}`;
-      setPopEffects((effects) => [...effects, { id: effectId, left: position.left, bottom: position.bottom }]);
+      const comboMultiplier = getComboMultiplier(comboStreak);
+      setPopEffects((effects) => [
+        ...effects,
+        { id: effectId, left: position.left, bottom: position.bottom, label: `+${comboMultiplier}` }
+      ]);
       setScorePulse('positive');
+      setComboStreak((value) => value + 1);
+      setCorrectClicks((value) => value + 1);
+      setComboPulse(true);
       window.setTimeout(() => {
         setPopEffects((effects) => effects.filter((effect) => effect.id !== effectId));
       }, 520);
       window.setTimeout(() => setScorePulse('none'), 220);
+      window.setTimeout(() => setComboPulse(false), 180);
     } else {
       setScorePulse('negative');
       setWrongFlash(true);
+      setWrongClicks((value) => value + 1);
+      setComboStreak(0);
+      setComboPulse(false);
       window.setTimeout(() => setScorePulse('none'), 220);
       window.setTimeout(() => setWrongFlash(false), 180);
     }
@@ -301,22 +326,6 @@ export default function WubbleWebPage() {
               Prompt: {activePrompt?.label || '...'}
             </strong>
 
-            {promptNotice && (
-              <span
-                style={{
-                  background: '#1f8fff',
-                  color: 'white',
-                  fontWeight: 700,
-                  borderRadius: 999,
-                  padding: '4px 10px',
-                  letterSpacing: 0.4,
-                  boxShadow: '0 4px 14px rgba(31,143,255,0.45)'
-                }}
-              >
-                NEW PROMPT!
-              </span>
-            )}
-
             <span>Time left: {remainingSeconds}s</span>
             <span
               style={{
@@ -327,7 +336,18 @@ export default function WubbleWebPage() {
                 transition: 'transform 130ms ease-out, color 130ms ease-out'
               }}
             >
-              Provisional score: {provisionalScore}
+              Score: {provisionalScore}
+            </span>
+            <span
+              style={{
+                fontWeight: 800,
+                color: comboStreak > 0 ? '#ff9f1c' : '#8a9cb2',
+                textShadow: comboStreak > 0 ? '0 0 14px rgba(255,159,28,0.5)' : 'none',
+                transform: comboPulse ? 'scale(1.16)' : 'scale(1)',
+                transition: 'transform 120ms ease-out'
+              }}
+            >
+              Combo: {comboStreak}
             </span>
             <span>Bubbles: {activeSpawns.length}</span>
           </div>
@@ -361,6 +381,30 @@ export default function WubbleWebPage() {
                 }}
               >
                 {countdown > 0 ? countdown : 'GO!'}
+              </div>
+            )}
+
+
+            {promptNotice && phase !== 'countdown' && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 18,
+                  pointerEvents: 'none',
+                  background: 'linear-gradient(90deg, #ff7a18, #ffb347)',
+                  color: '#fff',
+                  fontWeight: 900,
+                  fontSize: 30,
+                  padding: '12px 20px',
+                  borderRadius: 999,
+                  boxShadow: '0 10px 24px rgba(255,126,24,0.45)',
+                  animation: 'promptBurst 900ms ease-out forwards'
+                }}
+              >
+                NEW PROMPT!
               </div>
             )}
 
@@ -421,7 +465,7 @@ export default function WubbleWebPage() {
                   animation: 'popRise 520ms ease-out forwards'
                 }}
               >
-                PERFECT! +1
+                PERFECT! {effect.label}
               </div>
             ))}
 
@@ -458,6 +502,11 @@ export default function WubbleWebPage() {
             @keyframes bubbleWobble {
               0% { transform: translate(-50%, 50%) scaleX(0.992) scaleY(1.008); }
               100% { transform: translate(-50%, 50%) scaleX(1.008) scaleY(0.992); }
+            }
+            @keyframes promptBurst {
+              0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+              18% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+              100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
             }`}
           </style>
         </>
@@ -469,6 +518,9 @@ export default function WubbleWebPage() {
           <p>Validated score: {result.validatedScore}</p>
           <p>Coins earned: {result.coinsEarned}</p>
           <p>Total coins: {result.totalCoins}</p>
+          <p>Correct clicks: {result.validationSummary?.correctClicks ?? correctClicks}</p>
+          <p>Wrong clicks: {result.validationSummary?.wrongClicks ?? wrongClicks}</p>
+          <p>Best combo streak: {result.validationSummary?.maxCorrectStreak ?? comboStreak}</p>
           <button onClick={() => setPhase('setup')}>Play again</button>
         </div>
       )}

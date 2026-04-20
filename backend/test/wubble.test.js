@@ -92,3 +92,34 @@ test('validation handles correct, incorrect, duplicate and out-of-range clicks',
   assert.equal(result.summary.duplicateClickCount, 1);
   assert.equal(result.summary.outOfRangeTimestampCount, 1);
 });
+
+
+test('combo scoring doubles every five consecutive correct clicks and resets on wrong', () => {
+  const promptSchedule = [{ promptIndex: 0, categorySlug: 'animals', startsAtMs: 0, endsAtMs: 30000 }];
+
+  const spawnPlan = Array.from({ length: 12 }).map((_, index) => ({
+    spawnId: `c${index}`,
+    wordCategories: index === 11 ? ['vehicles'] : ['animals'],
+    appearsAtMs: 0,
+    expiresAtMs: 30000
+  }));
+
+  const eventLog = spawnPlan.map((spawn, index) => ({
+    type: 'click',
+    spawnId: spawn.spawnId,
+    timestampMs: 1000 + index * 100
+  }));
+
+  const result = validateWubbleSubmission({
+    promptSchedule,
+    spawnPlan,
+    durationSeconds: 30,
+    eventLog
+  });
+
+  // correct points: 5*1 + 5*2 + 1*4 = 19, final wrong click = -1 => 18
+  assert.equal(result.finalScore, 18);
+  assert.equal(result.summary.correctClicks, 11);
+  assert.equal(result.summary.wrongClicks, 1);
+  assert.equal(result.summary.highestComboMultiplier, 4);
+});
