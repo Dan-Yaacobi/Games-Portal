@@ -29,9 +29,8 @@ export default function GamesPage() {
             )}
           </li>
         ))}
-      </ul>
-
-      {status && <p>{status}</p>}
-    </div>
+      </div>
+      {status && <p className="status-error">{status}</p>}
+    </PageFrame>
   );
 }

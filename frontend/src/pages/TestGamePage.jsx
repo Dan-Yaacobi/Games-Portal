@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { gamesApi } from '../features/games/gamesApi';
 import { useAuth } from '../hooks/useAuth';
+import PageFrame from '../components/ui/PageFrame';
+import Panel from '../components/ui/Panel';
+import PixelButton from '../components/ui/PixelButton';
 
 export default function TestGamePage() {
   const { refreshUser } = useAuth();
@@ -33,7 +36,7 @@ export default function TestGamePage() {
     try {
       const data = await gamesApi.start(selectedGameId);
       setSessionId(data.sessionId);
-      setStatus('Session started (or existing session returned).');
+      setStatus('Session started.');
     } catch (error) {
       setStatus(error.message);
     }
@@ -47,12 +50,8 @@ export default function TestGamePage() {
 
     try {
       const randomScore = Math.floor(Math.random() * 5001);
-      const data = await gamesApi.complete(selectedGameId, {
-        sessionId,
-        score: randomScore
-      });
+      const data = await gamesApi.complete(selectedGameId, { sessionId, score: randomScore });
       await refreshUser();
-
       setScore(data.score);
       setCoinsEarned(data.coinsEarned);
       setTotalCoins(data.totalCoins);
@@ -63,37 +62,28 @@ export default function TestGamePage() {
   };
 
   return (
-    <div>
-      <h1>Test Game Session Flow</h1>
-      <p>Minimal integrity test page (no gameplay).</p>
-
-      <label htmlFor="game-select">Game: </label>
-      <select
-        id="game-select"
-        value={selectedGameId}
-        onChange={(event) => setSelectedGameId(event.target.value)}
-      >
-        <option value="">Select a game</option>
-        {games.map((game) => (
-          <option key={game.id} value={game.id}>
-            {game.name}
-          </option>
-        ))}
-      </select>
-
-      <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-        <button onClick={startGame}>Start Game</button>
-        <button onClick={finishGame}>Finish Game</button>
-      </div>
-
-      <div style={{ marginTop: 16 }}>
-        <p>sessionId: {sessionId || '-'}</p>
-        <p>score: {score ?? '-'}</p>
-        <p>coins earned: {coinsEarned ?? '-'}</p>
-        <p>total user coins: {totalCoins ?? '-'}</p>
-      </div>
-
-      {status && <p>{status}</p>}
-    </div>
+    <PageFrame title="Game Session Sandbox" subtitle="Quickly validate start/finish game flow.">
+      <Panel>
+        <div className="form-grid">
+          <select id="game-select" value={selectedGameId} onChange={(event) => setSelectedGameId(event.target.value)}>
+            <option value="">Select a game</option>
+            {games.map((game) => (
+              <option key={game.id} value={game.id}>{game.name}</option>
+            ))}
+          </select>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <PixelButton onClick={startGame}>Start</PixelButton>
+            <PixelButton variant="secondary" onClick={finishGame}>Finish</PixelButton>
+          </div>
+          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <div className="hud-item"><strong>sessionId</strong>{sessionId || '-'}</div>
+            <div className="hud-item"><strong>score</strong>{score ?? '-'}</div>
+            <div className="hud-item"><strong>coins earned</strong>{coinsEarned ?? '-'}</div>
+            <div className="hud-item"><strong>total coins</strong>{totalCoins ?? '-'}</div>
+          </div>
+        </div>
+      </Panel>
+      {status && <p className="status-error">{status}</p>}
+    </PageFrame>
   );
 }
