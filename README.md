@@ -92,9 +92,9 @@ npm run migrate
 
 ### Session flow
 
-1. Frontend calls `POST /wubble-web/start` with `wordDifficulty` + `speedDifficulty`.
+1. Frontend calls `POST /wubble-web/start` with `wordDifficulty`, `speedDifficulty`, and `durationSeconds` (`60` or `120`).
 2. Backend resolves game slug `wubble-web`, creates/reuses platform `game_sessions` row, then generates:
-   - prompt schedule (15–30 second windows for a 120-second game)
+   - prompt schedule (15–30 second windows for the selected game length)
    - full spawn plan (includes deterministic spawn metadata, categories, timing)
 3. Backend persists generated data in `wubble_sessions` and returns client-safe payload.
 
@@ -117,7 +117,7 @@ npm run migrate
 1. Start backend/frontend.
 2. Login/register.
 3. Open `/games` and launch Wubble Web.
-4. Play one 120-second round.
+4. Play a round using either a 60-second or 120-second duration.
 5. Final score and coin reward come from backend-validated submission (not provisional UI score).
 
 ## Security notes

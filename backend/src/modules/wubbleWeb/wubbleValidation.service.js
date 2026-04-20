@@ -16,10 +16,13 @@ function getEffectiveSpawnTiming(spawn) {
   };
 }
 
-export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSeconds, eventLog }) {
+export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSeconds, wordDifficulty, eventLog }) {
   const spawnById = new Map(spawnPlan.map((spawn) => [spawn.spawnId, spawn]));
   const clickedSpawnIds = new Set();
   const orderedEvents = [...eventLog].sort((a, b) => a.timestampMs - b.timestampMs);
+
+  const baseCorrectPoints = wordDifficulty === 'hard' ? 2 : 1;
+  const missPenaltyPoints = wordDifficulty === 'hard' ? 2 : 0;
 
   let finalScore = 0;
   let acceptedClicks = 0;
@@ -29,12 +32,45 @@ export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSe
   let unknownSpawnCount = 0;
   let correctClicks = 0;
   let wrongClicks = 0;
+  let missedCorrectCount = 0;
   let currentCorrectStreak = 0;
   let maxCorrectStreak = 0;
   let highestComboMultiplier = 1;
 
+  const hardModeMissExpirations =
+    wordDifficulty === 'hard'
+      ? spawnPlan
+          .filter((spawn) => spawn.matchesPromptAtSpawn)
+          .map((spawn) => ({
+            spawnId: spawn.spawnId,
+            expiresAtMs: getEffectiveSpawnTiming(spawn).expiresAtMs
+          }))
+          .sort((a, b) => a.expiresAtMs - b.expiresAtMs)
+      : [];
+
+  let missPointer = 0;
+
+  function applyMissPenalties(untilTimestampMs) {
+    if (!hardModeMissExpirations.length) return;
+
+    while (
+      missPointer < hardModeMissExpirations.length &&
+      hardModeMissExpirations[missPointer].expiresAtMs <= untilTimestampMs
+    ) {
+      const expiration = hardModeMissExpirations[missPointer];
+      if (!clickedSpawnIds.has(expiration.spawnId)) {
+        finalScore -= missPenaltyPoints;
+        missedCorrectCount += 1;
+        currentCorrectStreak = 0;
+      }
+      missPointer += 1;
+    }
+  }
+
   for (const event of orderedEvents) {
     const timestampMs = event.timestampMs;
+
+    applyMissPenalties(timestampMs);
 
     if (timestampMs < 0 || timestampMs > durationSeconds * 1000) {
       outOfRangeTimestampCount += 1;
@@ -67,12 +103,13 @@ export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSe
     const isCorrect = Boolean(activePrompt && spawn.wordCategories.includes(activePrompt.categorySlug));
 
     if (isCorrect) {
-      const points = getComboMultiplier(currentCorrectStreak);
+      const comboMultiplier = getComboMultiplier(currentCorrectStreak);
+      const points = baseCorrectPoints * comboMultiplier;
       finalScore += points;
       correctClicks += 1;
       currentCorrectStreak += 1;
       maxCorrectStreak = Math.max(maxCorrectStreak, currentCorrectStreak);
-      highestComboMultiplier = Math.max(highestComboMultiplier, points);
+      highestComboMultiplier = Math.max(highestComboMultiplier, comboMultiplier);
     } else {
       finalScore -= 1;
       wrongClicks += 1;
@@ -81,6 +118,8 @@ export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSe
 
     acceptedClicks += 1;
   }
+
+  applyMissPenalties(durationSeconds * 1000);
 
   return {
     finalScore,
@@ -93,8 +132,10 @@ export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSe
       unknownSpawnCount,
       correctClicks,
       wrongClicks,
+      missedCorrectCount,
       maxCorrectStreak,
       highestComboMultiplier,
+      baseCorrectPoints,
       finalScore
     }
   };

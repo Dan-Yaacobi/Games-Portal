@@ -1,7 +1,7 @@
 import { pool, query } from '../../db/pool.js';
 import { completeSessionInTransaction, getGameBySlug, startOrGetSession } from '../games/games.service.js';
 import { getWubbleContent } from './wubbleContent.service.js';
-import { WUBBLE_DURATION_SECONDS } from './wubble.config.js';
+import { DEFAULT_WUBBLE_DURATION_SECONDS } from './wubble.config.js';
 import {
   generatePromptSchedule,
   generateSpawnPlan
@@ -27,8 +27,9 @@ async function getWubbleGame() {
   return game;
 }
 
-export async function startWubbleSession({ userId, wordDifficulty, speedDifficulty }) {
+export async function startWubbleSession({ userId, wordDifficulty, speedDifficulty, durationSeconds }) {
   const game = await getWubbleGame();
+  const selectedDurationSeconds = durationSeconds ?? DEFAULT_WUBBLE_DURATION_SECONDS;
 
   if (!game) {
     return { status: 404, body: { message: 'Wubble Web is unavailable' } };
@@ -51,7 +52,9 @@ export async function startWubbleSession({ userId, wordDifficulty, speedDifficul
   if (existingWubbleResult.rowCount) {
     const row = existingWubbleResult.rows[0];
     const hasMatchingDifficulty =
-      row.word_difficulty === wordDifficulty && row.speed_difficulty === speedDifficulty;
+      row.word_difficulty === wordDifficulty &&
+      row.speed_difficulty === speedDifficulty &&
+      row.duration_seconds === selectedDurationSeconds;
 
     if (hasMatchingDifficulty) {
       return {
@@ -79,7 +82,8 @@ export async function startWubbleSession({ userId, wordDifficulty, speedDifficul
     return startWubbleSession({
       userId,
       wordDifficulty,
-      speedDifficulty
+      speedDifficulty,
+      durationSeconds: selectedDurationSeconds
     });
   }
 
@@ -90,14 +94,14 @@ export async function startWubbleSession({ userId, wordDifficulty, speedDifficul
 
   const promptSchedule = generatePromptSchedule({
     categories: content.categories,
-    durationSeconds: WUBBLE_DURATION_SECONDS
+    durationSeconds: selectedDurationSeconds
   });
 
   const spawnPlan = generateSpawnPlan({
     words: content.words,
     promptSchedule,
     speedDifficulty,
-    durationSeconds: WUBBLE_DURATION_SECONDS
+    durationSeconds: selectedDurationSeconds
   });
 
   const insertResult = await query(
@@ -114,7 +118,7 @@ export async function startWubbleSession({ userId, wordDifficulty, speedDifficul
       platformSessionId,
       wordDifficulty,
       speedDifficulty,
-      WUBBLE_DURATION_SECONDS,
+      selectedDurationSeconds,
       JSON.stringify(promptSchedule),
       JSON.stringify(spawnPlan)
     ]
@@ -125,7 +129,7 @@ export async function startWubbleSession({ userId, wordDifficulty, speedDifficul
     body: {
       platformSessionId,
       wubbleSessionId: insertResult.rows[0].id,
-      durationSeconds: WUBBLE_DURATION_SECONDS,
+      durationSeconds: selectedDurationSeconds,
       wordDifficulty,
       speedDifficulty,
       promptSchedule,
@@ -147,6 +151,7 @@ export async function submitWubbleSession({ userId, platformSessionId, wubbleSes
       ws.id,
       ws.platform_session_id,
       ws.duration_seconds,
+      ws.word_difficulty,
       ws.prompt_schedule_json,
       ws.spawn_plan_json,
       gs.user_id,
@@ -184,6 +189,7 @@ export async function submitWubbleSession({ userId, platformSessionId, wubbleSes
     promptSchedule: session.prompt_schedule_json,
     spawnPlan: session.spawn_plan_json,
     durationSeconds: session.duration_seconds,
+    wordDifficulty: session.word_difficulty,
     eventLog
   });
 

@@ -3,9 +3,9 @@ import { startWubbleSession, submitWubbleSession } from './wubble.service.js';
 export async function startWubble(req, res, next) {
   try {
     const userId = req.auth.userId;
-    const { wordDifficulty, speedDifficulty } = req.body;
+    const { wordDifficulty, speedDifficulty, durationSeconds } = req.body;
 
-    const result = await startWubbleSession({ userId, wordDifficulty, speedDifficulty });
+    const result = await startWubbleSession({ userId, wordDifficulty, speedDifficulty, durationSeconds });
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);

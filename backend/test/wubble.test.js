@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generatePromptSchedule, generateSpawnPlan } from '../src/modules/wubbleWeb/wubbleSessionGeneration.service.js';
 import { validateWubbleSubmission } from '../src/modules/wubbleWeb/wubbleValidation.service.js';
+import { startWubbleSchema } from '../src/modules/wubbleWeb/wubble.schema.js';
 
 const categories = [
   { slug: 'animals', label: 'animals', wordIds: ['1', '2', '3'] },
@@ -84,6 +85,7 @@ test('validation handles correct, incorrect, duplicate and out-of-range clicks',
     promptSchedule,
     spawnPlan,
     durationSeconds: 20,
+    wordDifficulty: 'easy',
     eventLog
   });
 
@@ -114,6 +116,7 @@ test('combo scoring doubles every ten consecutive correct clicks and resets on w
     promptSchedule,
     spawnPlan,
     durationSeconds: 30,
+    wordDifficulty: 'easy',
     eventLog
   });
 
@@ -122,4 +125,61 @@ test('combo scoring doubles every ten consecutive correct clicks and resets on w
   assert.equal(result.summary.correctClicks, 11);
   assert.equal(result.summary.wrongClicks, 1);
   assert.equal(result.summary.highestComboMultiplier, 2);
+});
+
+
+test('hard mode applies base x2 scoring and miss penalties for unclicked correct bubbles', () => {
+  const promptSchedule = [{ promptIndex: 0, categorySlug: 'animals', startsAtMs: 0, endsAtMs: 20000 }];
+
+  const spawnPlan = [
+    {
+      spawnId: 'h1',
+      wordCategories: ['animals'],
+      appearsAtMs: 0,
+      expiresAtMs: 5000,
+      promptIndexAtSpawn: 0,
+      matchesPromptAtSpawn: true
+    },
+    {
+      spawnId: 'h2',
+      wordCategories: ['animals'],
+      appearsAtMs: 0,
+      expiresAtMs: 5000,
+      promptIndexAtSpawn: 0,
+      matchesPromptAtSpawn: true
+    }
+  ];
+
+  const eventLog = [{ type: 'click', spawnId: 'h1', timestampMs: 2000 }];
+
+  const result = validateWubbleSubmission({
+    promptSchedule,
+    spawnPlan,
+    durationSeconds: 20,
+    wordDifficulty: 'hard',
+    eventLog
+  });
+
+  // +2 for clicked correct (hard base), -2 for missed correct bubble on expiry
+  assert.equal(result.finalScore, 0);
+  assert.equal(result.summary.correctClicks, 1);
+  assert.equal(result.summary.missedCorrectCount, 1);
+  assert.equal(result.summary.baseCorrectPoints, 2);
+});
+
+test('start schema accepts supported duration options and rejects unsupported values', () => {
+  const valid = startWubbleSchema.safeParse({
+    wordDifficulty: 'easy',
+    speedDifficulty: 'normal',
+    durationSeconds: 60
+  });
+
+  const invalid = startWubbleSchema.safeParse({
+    wordDifficulty: 'easy',
+    speedDifficulty: 'normal',
+    durationSeconds: 90
+  });
+
+  assert.equal(valid.success, true);
+  assert.equal(invalid.success, false);
 });

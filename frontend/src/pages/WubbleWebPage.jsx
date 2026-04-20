@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 
 const WORD_DIFFICULTIES = ['easy', 'medium', 'hard'];
 const SPEED_DIFFICULTIES = ['normal', 'fast', 'extreme', 'usain_bolt'];
+const DURATION_OPTIONS = [60, 120];
 
 const PROMPT_PREP_MS = 3000;
 
@@ -80,6 +81,69 @@ function getComboTierColor(comboTier) {
   return palette[Math.min(comboTier, palette.length - 1)];
 }
 
+function formatDifficultyLabel(value) {
+  if (value === 'usain_bolt') return 'Usain Bolt';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+const COMPOUND_WORD_OVERRIDES = {
+  elderberry: 'elder berry',
+  boysenberry: 'boysen berry',
+  gooseberry: 'goose berry',
+  huckleberry: 'huckle berry',
+  lingonberry: 'lingon berry',
+  mulberryjam: 'mulberry jam',
+  blackcurrant: 'black currant',
+  dragonfruit: 'dragon fruit',
+  grapefruit: 'grape fruit',
+  passionfruit: 'passion fruit',
+  starfruit: 'star fruit',
+  jackfruit: 'jack fruit',
+  bloodorange: 'blood orange',
+  sunnyday: 'sunny day',
+  musicnote: 'music note',
+  bassline: 'bass line',
+  turntable: 'turn table',
+  soundboard: 'sound board',
+  subwaycar: 'subway car',
+  tramcar: 'tram car',
+  cablecar: 'cable car',
+  ferryboat: 'ferry boat',
+  taxicab: 'taxi cab',
+  roadtrain: 'road train',
+  snowmobile: 'snow mobile',
+  snowfall: 'snow fall',
+  rainfall: 'rain fall',
+  raincloud: 'rain cloud',
+  raindrop: 'rain drop',
+  rainfront: 'rain front',
+  warmfront: 'warm front',
+  gustfront: 'gust front',
+  hailstorm: 'hail storm',
+  thunderstorm: 'thunder storm'
+};
+
+function formatWordForDisplay(wordText) {
+  const raw = String(wordText || '').trim();
+  if (!raw) return '';
+  if (raw.includes(' ')) return raw;
+
+  const lower = raw.toLowerCase();
+  if (COMPOUND_WORD_OVERRIDES[lower]) {
+    return COMPOUND_WORD_OVERRIDES[lower];
+  }
+
+  const suffixes = ['berry', 'fruit', 'boat', 'car', 'bus', 'train', 'cloud', 'storm', 'line'];
+
+  for (const suffix of suffixes) {
+    if (lower.endsWith(suffix) && lower.length > suffix.length + 2) {
+      return `${raw.slice(0, raw.length - suffix.length)} ${raw.slice(raw.length - suffix.length)}`.toLowerCase();
+    }
+  }
+
+  return raw;
+}
+
 function getWobbleSettings(spawnId) {
   const seed = Number(spawnId.split('-')[1] || 0);
   return {
@@ -93,6 +157,7 @@ export default function WubbleWebPage() {
   const [phase, setPhase] = useState('setup');
   const [wordDifficulty, setWordDifficulty] = useState('easy');
   const [speedDifficulty, setSpeedDifficulty] = useState('normal');
+  const [durationSeconds, setDurationSeconds] = useState(120);
   const [sessionData, setSessionData] = useState(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [eventLog, setEventLog] = useState([]);
@@ -106,6 +171,7 @@ export default function WubbleWebPage() {
   const [comboPulse, setComboPulse] = useState(false);
   const [correctClicks, setCorrectClicks] = useState(0);
   const [wrongClicks, setWrongClicks] = useState(0);
+  const [missedCorrectClicks, setMissedCorrectClicks] = useState(0);
   const [gameThemeIndex, setGameThemeIndex] = useState(0);
   const [previousThemeIndex, setPreviousThemeIndex] = useState(0);
   const [themeTransitioning, setThemeTransitioning] = useState(false);
@@ -120,6 +186,7 @@ export default function WubbleWebPage() {
   const scoreRef = useRef(null);
   const startRef = useRef(0);
   const prevPromptSlugRef = useRef(null);
+  const penalizedSpawnIdsRef = useRef(new Set());
 
   const activePrompt = useMemo(() => {
     if (!sessionData) return null;
@@ -251,14 +318,16 @@ export default function WubbleWebPage() {
       setComboStreak(0);
       setCorrectClicks(0);
       setWrongClicks(0);
+      setMissedCorrectClicks(0);
       setComboPulse(false);
       setGameThemeIndex(0);
       setPreviousThemeIndex(0);
       setThemeTransitioning(false);
       setFlyingScores([]);
       prevPromptSlugRef.current = null;
+      penalizedSpawnIdsRef.current = new Set();
 
-      const data = await wubbleApi.start({ wordDifficulty, speedDifficulty });
+      const data = await wubbleApi.start({ wordDifficulty, speedDifficulty, durationSeconds });
       setSessionData(data);
       setPhase('countdown');
     } catch (error) {
@@ -271,7 +340,8 @@ export default function WubbleWebPage() {
 
     const isCorrect = spawn.wordCategories.includes(activePrompt.categorySlug);
     const comboMultiplier = getComboMultiplier(comboStreak);
-    const scoreDelta = isCorrect ? comboMultiplier : -1;
+    const basePoints = sessionData?.wordDifficulty === 'hard' ? 2 : 1;
+    const scoreDelta = isCorrect ? basePoints * comboMultiplier : -1;
     setClickedIds((current) => new Set(current).add(spawn.spawnId));
     setEventLog((current) => [
       ...current,
@@ -380,6 +450,26 @@ export default function WubbleWebPage() {
     }
   }, [phase, flyingScores]);
 
+
+  useEffect(() => {
+    if (phase !== 'playing' || !sessionData || sessionData.wordDifficulty !== 'hard') return;
+
+    for (const spawn of sessionData.spawnPlan) {
+      if (!spawn.matchesPromptAtSpawn) continue;
+      if (clickedIds.has(spawn.spawnId)) continue;
+      if (penalizedSpawnIdsRef.current.has(spawn.spawnId)) continue;
+
+      const timing = getEffectiveSpawnTiming(spawn);
+      if (elapsedMs > timing.expiresAtMs) {
+        penalizedSpawnIdsRef.current.add(spawn.spawnId);
+        setProvisionalScore((value) => value - 2);
+        setComboStreak(0);
+        setComboPulse(false);
+        setMissedCorrectClicks((value) => value + 1);
+      }
+    }
+  }, [phase, sessionData, elapsedMs, clickedIds]);
+
   const remainingSeconds = sessionData
     ? Math.max(0, Math.ceil(sessionData.durationSeconds - elapsedMs / 1000))
     : 0;
@@ -395,7 +485,7 @@ export default function WubbleWebPage() {
             <select value={wordDifficulty} onChange={(event) => setWordDifficulty(event.target.value)}>
               {WORD_DIFFICULTIES.map((difficulty) => (
                 <option key={difficulty} value={difficulty}>
-                  {difficulty}
+                  {formatDifficultyLabel(difficulty)}
                 </option>
               ))}
             </select>
@@ -406,7 +496,18 @@ export default function WubbleWebPage() {
             <select value={speedDifficulty} onChange={(event) => setSpeedDifficulty(event.target.value)}>
               {SPEED_DIFFICULTIES.map((difficulty) => (
                 <option key={difficulty} value={difficulty}>
-                  {difficulty}
+                  {formatDifficultyLabel(difficulty)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Game duration
+            <select value={durationSeconds} onChange={(event) => setDurationSeconds(Number(event.target.value))}>
+              {DURATION_OPTIONS.map((duration) => (
+                <option key={duration} value={duration}>
+                  {duration} seconds
                 </option>
               ))}
             </select>
@@ -445,7 +546,7 @@ export default function WubbleWebPage() {
                 flex: '0 0 auto'
               }}
             >
-              Prompt: {activePrompt?.label || '...'}
+              {activePrompt?.label || '...'}
             </strong>
 
             <span style={{ flex: '0 0 auto' }}>Time left: {remainingSeconds}s</span>
@@ -572,11 +673,12 @@ export default function WubbleWebPage() {
 
             {activeSpawns.map((spawn) => {
               const timing = getEffectiveSpawnTiming(spawn);
+              const displayWord = formatWordForDisplay(spawn.wordText);
               const position = getBubblePosition({
                 spawn: { ...spawn, appearsAtMs: timing.appearsAtMs, travelDurationMs: timing.expiresAtMs - timing.appearsAtMs },
                 elapsedMs
               });
-              const bubbleDimensions = getBubbleDimensions(spawn.wordText);
+              const bubbleDimensions = getBubbleDimensions(displayWord);
               const wobble = getWobbleSettings(spawn.spawnId);
 
               return (
@@ -610,7 +712,7 @@ export default function WubbleWebPage() {
                     animation: `bubbleWobble ${wobble.durationMs}ms ease-in-out ${wobble.delayMs}ms infinite alternate`
                   }}
                 >
-                  {spawn.wordText}
+                  {displayWord}
                 </button>
               );
             })}
@@ -733,11 +835,12 @@ export default function WubbleWebPage() {
               }}
             >
               <h2 style={{ marginTop: 0, marginBottom: 14, color: '#123b63' }}>Round Complete ✨</h2>
-              <p><strong>Validated score:</strong> {result.validatedScore}</p>
+              <p><strong>Final score:</strong> {result.validatedScore}</p>
               <p><strong>Coins earned:</strong> {result.coinsEarned}</p>
               <p><strong>Total coins:</strong> {result.totalCoins}</p>
               <p><strong>Correct clicks:</strong> {result.validationSummary?.correctClicks ?? correctClicks}</p>
               <p><strong>Wrong clicks:</strong> {result.validationSummary?.wrongClicks ?? wrongClicks}</p>
+              <p><strong>Missed correct bubbles:</strong> {result.validationSummary?.missedCorrectCount ?? missedCorrectClicks}</p>
               <p><strong>Best combo streak:</strong> {result.validationSummary?.maxCorrectStreak ?? comboStreak}</p>
               <button onClick={() => setPhase('setup')}>Play again</button>
             </div>

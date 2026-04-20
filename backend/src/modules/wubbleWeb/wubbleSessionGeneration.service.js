@@ -1,8 +1,8 @@
 import {
+  DEFAULT_WUBBLE_DURATION_SECONDS,
   PROMPT_MAX_MS,
   PROMPT_MIN_MS,
-  SPEED_CONFIG,
-  WUBBLE_DURATION_SECONDS
+  SPEED_CONFIG
 } from './wubble.config.js';
 
 function pickRandom(array) {
@@ -39,7 +39,7 @@ function pickBalancedWord(pool, wordUsageCount, recentWordIds) {
   return pickRandom(lowestUsageWords);
 }
 
-export function generatePromptSchedule({ categories, durationSeconds = WUBBLE_DURATION_SECONDS }) {
+export function generatePromptSchedule({ categories, durationSeconds = DEFAULT_WUBBLE_DURATION_SECONDS }) {
   const durationMs = durationSeconds * 1000;
   const schedule = [];
   let cursorMs = 0;
@@ -81,7 +81,7 @@ function chooseWordPool({ words, currentPrompt, shouldMatchPrompt }) {
   return words.filter((word) => !word.categories.includes(currentPrompt.categorySlug));
 }
 
-export function generateSpawnPlan({ words, promptSchedule, speedDifficulty, durationSeconds = WUBBLE_DURATION_SECONDS }) {
+export function generateSpawnPlan({ words, promptSchedule, speedDifficulty, durationSeconds = DEFAULT_WUBBLE_DURATION_SECONDS }) {
   const config = SPEED_CONFIG[speedDifficulty];
   const durationMs = durationSeconds * 1000;
   const spawnPlan = [];

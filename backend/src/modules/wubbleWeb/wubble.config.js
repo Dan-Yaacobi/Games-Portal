@@ -1,4 +1,5 @@
-export const WUBBLE_DURATION_SECONDS = 120;
+export const WUBBLE_DURATION_OPTIONS = [60, 120];
+export const DEFAULT_WUBBLE_DURATION_SECONDS = 120;
 
 export const SPEED_CONFIG = {
   normal: { spawnIntervalMs: 900, travelDurationMs: 6800, maxConcurrent: 11, matchProbability: 0.54 },
