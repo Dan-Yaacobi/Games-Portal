@@ -5,6 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 const WORD_DIFFICULTIES = ['easy', 'medium', 'hard'];
 const SPEED_DIFFICULTIES = ['normal', 'fast', 'extreme', 'usain_bolt'];
 
+const PROMPT_PREP_MS = 3000;
+
 const GAME_BG_PALETTE = [
   ['#f8fdff', '#cde7ff'],
   ['#fff8f1', '#ffd7b5'],
@@ -98,12 +100,17 @@ export default function WubbleWebPage() {
   const [correctClicks, setCorrectClicks] = useState(0);
   const [wrongClicks, setWrongClicks] = useState(0);
   const [gameThemeIndex, setGameThemeIndex] = useState(0);
+  const [previousThemeIndex, setPreviousThemeIndex] = useState(0);
+  const [themeTransitioning, setThemeTransitioning] = useState(false);
+  const [flyingScores, setFlyingScores] = useState([]);
   const [popEffects, setPopEffects] = useState([]);
   const [particles, setParticles] = useState([]);
   const [wrongFlash, setWrongFlash] = useState(false);
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState('');
   const rafRef = useRef(null);
+  const gameContainerRef = useRef(null);
+  const scoreRef = useRef(null);
   const startRef = useRef(0);
   const prevPromptSlugRef = useRef(null);
 
@@ -116,7 +123,8 @@ export default function WubbleWebPage() {
     if (!sessionData || !activePrompt) return [];
 
     return sessionData.spawnPlan.filter((spawn) => {
-      const inWindow = elapsedMs >= spawn.appearsAtMs && elapsedMs <= spawn.expiresAtMs;
+      const prepDone = elapsedMs >= activePrompt.startsAtMs + PROMPT_PREP_MS;
+      const inWindow = prepDone && elapsedMs >= spawn.appearsAtMs && elapsedMs <= spawn.expiresAtMs;
       if (!inWindow || clickedIds.has(spawn.spawnId)) return false;
 
       const isFromPriorPrompt = spawn.appearsAtMs < activePrompt.startsAtMs;
@@ -138,12 +146,16 @@ export default function WubbleWebPage() {
       const nextThemeIndex = Math.abs(
         Array.from(activePrompt.categorySlug).reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
       ) % GAME_BG_PALETTE.length;
+      setPreviousThemeIndex(gameThemeIndex);
       setGameThemeIndex(nextThemeIndex);
+      setThemeTransitioning(true);
       const timeout = window.setTimeout(() => setPromptPulse(false), 360);
+      const themeTimeout = window.setTimeout(() => setThemeTransitioning(false), 650);
       const noticeTimeout = window.setTimeout(() => setPromptNotice(false), 900);
       return () => {
         window.clearTimeout(timeout);
         window.clearTimeout(noticeTimeout);
+        window.clearTimeout(themeTimeout);
       };
     }
 
@@ -233,6 +245,9 @@ export default function WubbleWebPage() {
       setWrongClicks(0);
       setComboPulse(false);
       setGameThemeIndex(0);
+      setPreviousThemeIndex(0);
+      setThemeTransitioning(false);
+      setFlyingScores([]);
       prevPromptSlugRef.current = null;
 
       const data = await wubbleApi.start({ wordDifficulty, speedDifficulty });
@@ -249,7 +264,6 @@ export default function WubbleWebPage() {
     const isCorrect = spawn.wordCategories.includes(activePrompt.categorySlug);
     const comboMultiplier = getComboMultiplier(comboStreak);
     const scoreDelta = isCorrect ? comboMultiplier : -1;
-    setProvisionalScore((value) => value + scoreDelta);
     setClickedIds((current) => new Set(current).add(spawn.spawnId));
     setEventLog((current) => [
       ...current,
@@ -261,6 +275,48 @@ export default function WubbleWebPage() {
     ]);
 
     const position = getBubblePosition({ spawn, elapsedMs });
+
+    const scoreRect = scoreRef.current?.getBoundingClientRect();
+    const containerRect = gameContainerRef.current?.getBoundingClientRect();
+
+    if (scoreRect && containerRect) {
+      const sourceX = containerRect.left + (position.left / 100) * containerRect.width;
+      const sourceY = containerRect.top + (1 - position.bottom / 100) * containerRect.height;
+      const targetX = scoreRect.left + scoreRect.width / 2;
+      const targetY = scoreRect.top + scoreRect.height / 2;
+      const id = `${spawn.spawnId}-${elapsedMs}-fly`;
+
+      setFlyingScores((current) => [
+        ...current,
+        {
+          id,
+          label: `${scoreDelta > 0 ? '+' : ''}${scoreDelta}`,
+          color: scoreDelta > 0 ? getComboTierColor(getComboTier(comboStreak)) : '#ff5a6f',
+          sourceX,
+          sourceY,
+          targetX,
+          targetY,
+          reached: false,
+          delta: scoreDelta
+        }
+      ]);
+
+      window.requestAnimationFrame(() => {
+        setFlyingScores((current) => current.map((item) => (item.id === id ? { ...item, reached: true } : item)));
+      });
+
+      window.setTimeout(() => {
+        setFlyingScores((current) => {
+          const exists = current.some((item) => item.id === id);
+          if (exists) {
+            setProvisionalScore((value) => value + scoreDelta);
+          }
+          return current.filter((item) => item.id !== id);
+        });
+      }, 650);
+    } else {
+      setProvisionalScore((value) => value + scoreDelta);
+    }
 
     const nextParticles = createParticles(position.left, position.bottom, isCorrect);
     setParticles((prev) => [...prev, ...nextParticles]);
@@ -300,6 +356,17 @@ export default function WubbleWebPage() {
       window.setTimeout(() => setWrongFlash(false), 180);
     }
   };
+
+
+  useEffect(() => {
+    if ((phase === 'submitting' || phase === 'setup' || phase === 'done') && flyingScores.length) {
+      const pendingDelta = flyingScores.reduce((sum, item) => sum + item.delta, 0);
+      if (pendingDelta !== 0) {
+        setProvisionalScore((value) => value + pendingDelta);
+      }
+      setFlyingScores([]);
+    }
+  }, [phase, flyingScores]);
 
   const remainingSeconds = sessionData
     ? Math.max(0, Math.ceil(sessionData.durationSeconds - elapsedMs / 1000))
@@ -358,6 +425,7 @@ export default function WubbleWebPage() {
 
             <span>Time left: {remainingSeconds}s</span>
             <span
+              ref={scoreRef}
               style={{
                 fontWeight: 700,
                 color: scorePulse === 'negative' ? '#df3652' : '#1e4568',
@@ -382,10 +450,10 @@ export default function WubbleWebPage() {
             >
               Combo: {comboStreak} (x{getComboMultiplier(comboStreak)})
             </span>
-            <span>Bubbles: {activeSpawns.length}</span>
           </div>
 
           <div
+            ref={gameContainerRef}
             style={{
               height: 460,
               border: wrongFlash ? '2px solid #ff6d80' : '1px solid #9dc7ef',
@@ -394,10 +462,24 @@ export default function WubbleWebPage() {
               overflow: 'hidden',
               background: wrongFlash
                 ? 'radial-gradient(circle at 20% 20%, #ffe8ec, #ffd0d8 70%)'
-                : `radial-gradient(circle at 20% 20%, ${GAME_BG_PALETTE[gameThemeIndex][0]}, ${GAME_BG_PALETTE[gameThemeIndex][1]} 70%)`,
+                : `radial-gradient(circle at 20% 20%, ${GAME_BG_PALETTE[previousThemeIndex][0]}, ${GAME_BG_PALETTE[previousThemeIndex][1]} 70%)`,
               transition: 'background 120ms ease-out, border-color 120ms ease-out'
             }}
           >
+
+            {!wrongFlash && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: `radial-gradient(circle at 20% 20%, ${GAME_BG_PALETTE[gameThemeIndex][0]}, ${GAME_BG_PALETTE[gameThemeIndex][1]} 70%)`,
+                  opacity: themeTransitioning ? 1 : 0,
+                  transition: 'opacity 650ms ease-in-out',
+                  pointerEvents: 'none'
+                }}
+              />
+            )}
+
             {phase === 'countdown' && (
               <div
                 style={{
@@ -438,6 +520,26 @@ export default function WubbleWebPage() {
                 }}
               >
                 NEW PROMPT!
+              </div>
+            )}
+
+
+            {phase === 'playing' && elapsedMs < activePrompt.startsAtMs + PROMPT_PREP_MS && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 18,
+                  background: 'rgba(9,22,44,0.75)',
+                  color: '#fff',
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  fontWeight: 700
+                }}
+              >
+                Prepare... {Math.max(0, Math.ceil((activePrompt.startsAtMs + PROMPT_PREP_MS - elapsedMs) / 1000))}
               </div>
             )}
 
@@ -499,6 +601,29 @@ export default function WubbleWebPage() {
                 }}
               >
                 PERFECT! {effect.label}
+              </div>
+            ))}
+
+
+            {flyingScores.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  position: 'fixed',
+                  left: item.reached ? item.targetX : item.sourceX,
+                  top: item.reached ? item.targetY : item.sourceY,
+                  transform: 'translate(-50%, -50%)',
+                  color: item.color,
+                  fontWeight: 900,
+                  fontSize: 26,
+                  textShadow: `0 0 12px ${item.color}`,
+                  transition: 'left 650ms cubic-bezier(0.2, 0.9, 0.2, 1), top 650ms cubic-bezier(0.2, 0.9, 0.2, 1), opacity 650ms ease-out',
+                  opacity: item.reached ? 0.2 : 1,
+                  pointerEvents: 'none',
+                  zIndex: 40
+                }}
+              >
+                {item.label}
               </div>
             ))}
 
