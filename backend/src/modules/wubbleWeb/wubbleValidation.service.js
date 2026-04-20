@@ -3,7 +3,7 @@ function getPromptAtMs(promptSchedule, timestampMs) {
 }
 
 function getComboMultiplier(correctStreak) {
-  return 2 ** Math.floor(correctStreak / 5);
+  return 2 ** Math.floor(correctStreak / 10);
 }
 
 export function validateWubbleSubmission({ promptSchedule, spawnPlan, durationSeconds, eventLog }) {

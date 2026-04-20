@@ -5,6 +5,15 @@ import { useAuth } from '../hooks/useAuth';
 const WORD_DIFFICULTIES = ['easy', 'medium', 'hard'];
 const SPEED_DIFFICULTIES = ['normal', 'fast', 'extreme', 'usain_bolt'];
 
+const GAME_BG_PALETTE = [
+  ['#f8fdff', '#cde7ff'],
+  ['#fff8f1', '#ffd7b5'],
+  ['#f5f7ff', '#d9dbff'],
+  ['#f3fff7', '#c7f1d8'],
+  ['#fff2fb', '#f7c7e8'],
+  ['#f1fffe', '#bdebea']
+];
+
 function getPromptAtMs(schedule, elapsedMs) {
   return schedule.find((prompt) => elapsedMs >= prompt.startsAtMs && elapsedMs < prompt.endsAtMs) || null;
 }
@@ -50,7 +59,16 @@ function getBubbleDimensions(wordText) {
 }
 
 function getComboMultiplier(correctStreak) {
-  return 2 ** Math.floor(correctStreak / 5);
+  return 2 ** Math.floor(correctStreak / 10);
+}
+
+function getComboTier(correctStreak) {
+  return Math.floor(correctStreak / 10);
+}
+
+function getComboTierColor(comboTier) {
+  const palette = ['#8a9cb2', '#5cc8ff', '#a56dff', '#ff9f1c', '#ff4d8d', '#ffd166'];
+  return palette[Math.min(comboTier, palette.length - 1)];
 }
 
 function getWobbleSettings(spawnId) {
@@ -79,6 +97,7 @@ export default function WubbleWebPage() {
   const [comboPulse, setComboPulse] = useState(false);
   const [correctClicks, setCorrectClicks] = useState(0);
   const [wrongClicks, setWrongClicks] = useState(0);
+  const [gameThemeIndex, setGameThemeIndex] = useState(0);
   const [popEffects, setPopEffects] = useState([]);
   const [particles, setParticles] = useState([]);
   const [wrongFlash, setWrongFlash] = useState(false);
@@ -116,6 +135,10 @@ export default function WubbleWebPage() {
       prevPromptSlugRef.current = activePrompt.categorySlug;
       setPromptPulse(true);
       setPromptNotice(true);
+      const nextThemeIndex = Math.abs(
+        Array.from(activePrompt.categorySlug).reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+      ) % GAME_BG_PALETTE.length;
+      setGameThemeIndex(nextThemeIndex);
       const timeout = window.setTimeout(() => setPromptPulse(false), 360);
       const noticeTimeout = window.setTimeout(() => setPromptNotice(false), 900);
       return () => {
@@ -209,6 +232,7 @@ export default function WubbleWebPage() {
       setCorrectClicks(0);
       setWrongClicks(0);
       setComboPulse(false);
+      setGameThemeIndex(0);
       prevPromptSlugRef.current = null;
 
       const data = await wubbleApi.start({ wordDifficulty, speedDifficulty });
@@ -249,7 +273,13 @@ export default function WubbleWebPage() {
       const comboMultiplier = getComboMultiplier(comboStreak);
       setPopEffects((effects) => [
         ...effects,
-        { id: effectId, left: position.left, bottom: position.bottom, label: `+${comboMultiplier}` }
+        {
+          id: effectId,
+          left: position.left,
+          bottom: position.bottom,
+          label: `+${comboMultiplier}`,
+          color: getComboTierColor(getComboTier(comboStreak))
+        }
       ]);
       setScorePulse('positive');
       setComboStreak((value) => value + 1);
@@ -341,13 +371,16 @@ export default function WubbleWebPage() {
             <span
               style={{
                 fontWeight: 800,
-                color: comboStreak > 0 ? '#ff9f1c' : '#8a9cb2',
-                textShadow: comboStreak > 0 ? '0 0 14px rgba(255,159,28,0.5)' : 'none',
+                color: getComboTierColor(getComboTier(comboStreak)),
+                textShadow:
+                  comboStreak > 0
+                    ? `0 0 14px ${getComboTierColor(getComboTier(comboStreak))}`
+                    : 'none',
                 transform: comboPulse ? 'scale(1.16)' : 'scale(1)',
                 transition: 'transform 120ms ease-out'
               }}
             >
-              Combo: {comboStreak}
+              Combo: {comboStreak} (x{getComboMultiplier(comboStreak)})
             </span>
             <span>Bubbles: {activeSpawns.length}</span>
           </div>
@@ -361,7 +394,7 @@ export default function WubbleWebPage() {
               overflow: 'hidden',
               background: wrongFlash
                 ? 'radial-gradient(circle at 20% 20%, #ffe8ec, #ffd0d8 70%)'
-                : 'radial-gradient(circle at 20% 20%, #f8fdff, #cde7ff 70%)',
+                : `radial-gradient(circle at 20% 20%, ${GAME_BG_PALETTE[gameThemeIndex][0]}, ${GAME_BG_PALETTE[gameThemeIndex][1]} 70%)`,
               transition: 'background 120ms ease-out, border-color 120ms ease-out'
             }}
           >
@@ -458,10 +491,10 @@ export default function WubbleWebPage() {
                   bottom: `${effect.bottom}%`,
                   transform: 'translate(-50%, 50%)',
                   pointerEvents: 'none',
-                  color: '#1dbf73',
+                  color: effect.color,
                   fontWeight: 900,
                   fontSize: 30,
-                  textShadow: '0 5px 14px rgba(27,191,115,0.45)',
+                  textShadow: `0 5px 14px ${effect.color}88`,
                   animation: 'popRise 520ms ease-out forwards'
                 }}
               >

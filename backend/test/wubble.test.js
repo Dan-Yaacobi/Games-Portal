@@ -94,7 +94,7 @@ test('validation handles correct, incorrect, duplicate and out-of-range clicks',
 });
 
 
-test('combo scoring doubles every five consecutive correct clicks and resets on wrong', () => {
+test('combo scoring doubles every ten consecutive correct clicks and resets on wrong', () => {
   const promptSchedule = [{ promptIndex: 0, categorySlug: 'animals', startsAtMs: 0, endsAtMs: 30000 }];
 
   const spawnPlan = Array.from({ length: 12 }).map((_, index) => ({
@@ -117,9 +117,9 @@ test('combo scoring doubles every five consecutive correct clicks and resets on 
     eventLog
   });
 
-  // correct points: 5*1 + 5*2 + 1*4 = 19, final wrong click = -1 => 18
-  assert.equal(result.finalScore, 18);
+  // correct points: 10*1 + 1*2 = 12, final wrong click = -1 => 11
+  assert.equal(result.finalScore, 11);
   assert.equal(result.summary.correctClicks, 11);
   assert.equal(result.summary.wrongClicks, 1);
-  assert.equal(result.summary.highestComboMultiplier, 4);
+  assert.equal(result.summary.highestComboMultiplier, 2);
 });
