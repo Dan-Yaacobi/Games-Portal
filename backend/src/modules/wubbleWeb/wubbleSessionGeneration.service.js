@@ -16,6 +16,20 @@ function clampPromptDuration(remainingMs) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function pickBalancedWord(pool, wordUsageCount, recentWordIds) {
+  const recentSet = new Set(recentWordIds);
+  const nonRecent = pool.filter((word) => !recentSet.has(word.wordId));
+  const candidatePool = nonRecent.length ? nonRecent : pool;
+
+  let minUsage = Number.POSITIVE_INFINITY;
+  for (const word of candidatePool) {
+    minUsage = Math.min(minUsage, wordUsageCount.get(word.wordId) || 0);
+  }
+
+  const lowestUsageWords = candidatePool.filter((word) => (wordUsageCount.get(word.wordId) || 0) === minUsage);
+  return pickRandom(lowestUsageWords);
+}
+
 export function generatePromptSchedule({ categories, durationSeconds = WUBBLE_DURATION_SECONDS }) {
   const durationMs = durationSeconds * 1000;
   const schedule = [];
@@ -63,6 +77,8 @@ export function generateSpawnPlan({ words, promptSchedule, speedDifficulty, dura
   const durationMs = durationSeconds * 1000;
   const spawnPlan = [];
   const activeEndTimes = [];
+  const wordUsageCount = new Map();
+  const recentWordIds = [];
   let appearsAtMs = 0;
   let spawnOrdinal = 0;
 
@@ -80,7 +96,7 @@ export function generateSpawnPlan({ words, promptSchedule, speedDifficulty, dura
       const pool = chooseWordPool({ words, currentPrompt, shouldMatchPrompt });
 
       if (pool.length) {
-        const chosenWord = pickRandom(pool);
+        const chosenWord = pickBalancedWord(pool, wordUsageCount, recentWordIds);
         const spawnId = `spawn-${spawnOrdinal}`;
         const travelDurationMs = Math.max(1800, config.travelDurationMs + Math.floor(Math.random() * 600) - 300);
 
@@ -96,6 +112,12 @@ export function generateSpawnPlan({ words, promptSchedule, speedDifficulty, dura
           matchesPromptAtSpawn: shouldMatchPrompt,
           expiresAtMs: appearsAtMs + travelDurationMs
         });
+
+        wordUsageCount.set(chosenWord.wordId, (wordUsageCount.get(chosenWord.wordId) || 0) + 1);
+        recentWordIds.push(chosenWord.wordId);
+        if (recentWordIds.length > 10) {
+          recentWordIds.shift();
+        }
 
         activeEndTimes.push(appearsAtMs + travelDurationMs);
         activeEndTimes.sort((a, b) => a - b);

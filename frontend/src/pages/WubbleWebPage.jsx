@@ -14,11 +14,11 @@ function getBubblePosition({ spawn, elapsedMs }) {
     1,
     Math.max(0, (elapsedMs - spawn.appearsAtMs) / Math.max(1, spawn.travelDurationMs))
   );
-  const easedProgress = 1 - (1 - rawProgress) ** 1.45;
-  const sway = Math.sin((elapsedMs + Number(spawn.spawnId.split('-')[1] || 0) * 70) / 220) * 2.8;
+  const easedProgress = 1 - (1 - rawProgress) ** 1.85;
+  const sway = Math.sin((elapsedMs + Number(spawn.spawnId.split('-')[1] || 0) * 60) / 300) * 2.2;
 
   return {
-    bottom: Math.round(easedProgress * 100),
+    bottom: Math.round(easedProgress * 102),
     left: Math.min(92, Math.max(8, spawn.xStartNormalized * 100 + sway))
   };
 }
@@ -33,10 +33,14 @@ export default function WubbleWebPage() {
   const [eventLog, setEventLog] = useState([]);
   const [clickedIds, setClickedIds] = useState(() => new Set());
   const [provisionalScore, setProvisionalScore] = useState(0);
+  const [countdown, setCountdown] = useState(3);
+  const [promptPulse, setPromptPulse] = useState(false);
+  const [popEffects, setPopEffects] = useState([]);
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState('');
-  const loopRef = useRef(null);
+  const rafRef = useRef(null);
   const startRef = useRef(0);
+  const prevPromptSlugRef = useRef(null);
 
   const activePrompt = useMemo(() => {
     if (!sessionData) return null;
@@ -60,29 +64,66 @@ export default function WubbleWebPage() {
   }, [sessionData, elapsedMs, clickedIds, activePrompt]);
 
   useEffect(() => {
+    if (!activePrompt) return;
+
+    if (prevPromptSlugRef.current !== activePrompt.categorySlug) {
+      prevPromptSlugRef.current = activePrompt.categorySlug;
+      setPromptPulse(true);
+      const timeout = window.setTimeout(() => setPromptPulse(false), 260);
+      return () => window.clearTimeout(timeout);
+    }
+
+    return undefined;
+  }, [activePrompt]);
+
+  useEffect(() => {
+    if (phase !== 'countdown') return undefined;
+
+    setCountdown(3);
+    const intervalId = window.setInterval(() => {
+      setCountdown((current) => {
+        if (current <= 1) {
+          window.clearInterval(intervalId);
+          setPhase('playing');
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [phase]);
+
+  useEffect(() => {
     if (phase !== 'playing' || !sessionData) return undefined;
 
     startRef.current = performance.now();
-    loopRef.current = window.setInterval(() => {
+
+    const frame = () => {
       const nextElapsed = Math.floor(performance.now() - startRef.current);
       setElapsedMs(nextElapsed);
 
       if (nextElapsed >= sessionData.durationSeconds * 1000) {
         setPhase('submitting');
+        return;
       }
-    }, 33);
+
+      rafRef.current = window.requestAnimationFrame(frame);
+    };
+
+    rafRef.current = window.requestAnimationFrame(frame);
 
     return () => {
-      if (loopRef.current) window.clearInterval(loopRef.current);
+      if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
     };
   }, [phase, sessionData]);
 
   useEffect(() => {
     if (phase !== 'submitting' || !sessionData) return;
 
-    if (loopRef.current) {
-      window.clearInterval(loopRef.current);
-      loopRef.current = null;
+    if (rafRef.current) {
+      window.cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
 
     wubbleApi
@@ -110,10 +151,12 @@ export default function WubbleWebPage() {
       setClickedIds(new Set());
       setProvisionalScore(0);
       setElapsedMs(0);
+      setPopEffects([]);
+      prevPromptSlugRef.current = null;
 
       const data = await wubbleApi.start({ wordDifficulty, speedDifficulty });
       setSessionData(data);
-      setPhase('playing');
+      setPhase('countdown');
     } catch (error) {
       setStatus(error.message);
     }
@@ -133,6 +176,15 @@ export default function WubbleWebPage() {
         timestampMs: elapsedMs
       }
     ]);
+
+    if (isCorrect) {
+      const effectId = `${spawn.spawnId}-${elapsedMs}`;
+      const position = getBubblePosition({ spawn, elapsedMs });
+      setPopEffects((effects) => [...effects, { id: effectId, left: position.left, bottom: position.bottom }]);
+      window.setTimeout(() => {
+        setPopEffects((effects) => effects.filter((effect) => effect.id !== effectId));
+      }, 420);
+    }
   };
 
   const remainingSeconds = sessionData
@@ -171,10 +223,23 @@ export default function WubbleWebPage() {
         </div>
       )}
 
-      {(phase === 'playing' || phase === 'submitting') && sessionData && (
+      {(phase === 'countdown' || phase === 'playing' || phase === 'submitting') && sessionData && (
         <>
-          <div style={{ display: 'flex', gap: 20, marginBottom: 12, flexWrap: 'wrap' }}>
-            <strong>Prompt: {activePrompt?.label || '...'}</strong>
+          <div style={{ display: 'flex', gap: 20, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <strong
+              style={{
+                fontSize: 24,
+                padding: '6px 14px',
+                borderRadius: 12,
+                color: '#123555',
+                background: 'linear-gradient(90deg, rgba(247,252,255,1), rgba(218,236,255,1))',
+                boxShadow: '0 3px 10px rgba(28, 86, 139, 0.2)',
+                transform: promptPulse ? 'scale(1.05)' : 'scale(1)',
+                transition: 'transform 180ms ease-out'
+              }}
+            >
+              Prompt: {activePrompt?.label || '...'}
+            </strong>
             <span>Time left: {remainingSeconds}s</span>
             <span>Provisional score: {provisionalScore}</span>
             <span>Bubbles: {activeSpawns.length}</span>
@@ -190,11 +255,27 @@ export default function WubbleWebPage() {
               background: 'radial-gradient(circle at 20% 20%, #f8fdff, #cde7ff 70%)'
             }}
           >
+            {phase === 'countdown' && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: 'rgba(10, 30, 56, 0.3)',
+                  zIndex: 20,
+                  color: '#fff',
+                  fontSize: 70,
+                  fontWeight: 700,
+                  textShadow: '0 6px 18px rgba(0,0,0,0.4)'
+                }}
+              >
+                {countdown > 0 ? countdown : 'GO!'}
+              </div>
+            )}
+
             {activeSpawns.map((spawn) => {
               const position = getBubblePosition({ spawn, elapsedMs });
-              const isCorrectNow = activePrompt
-                ? spawn.wordCategories.includes(activePrompt.categorySlug)
-                : false;
 
               return (
                 <button
@@ -205,24 +286,56 @@ export default function WubbleWebPage() {
                     left: `${position.left}%`,
                     bottom: `${position.bottom}%`,
                     transform: 'translate(-50%, 50%)',
-                    borderRadius: 999,
-                    border: isCorrectNow ? '2px solid #5da9f5' : '2px solid #7d93b0',
+                    borderRadius: '50%',
+                    width: 96,
+                    height: 96,
+                    border: '2px solid #6a89aa',
                     background:
-                      'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.98), rgba(255,255,255,0.82) 45%, rgba(186,223,255,0.75) 100%)',
+                      'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.98), rgba(255,255,255,0.86) 45%, rgba(186,223,255,0.72) 100%)',
                     color: '#173049',
-                    padding: '10px 15px',
-                    minWidth: 88,
-                    boxShadow: '0 8px 16px rgba(35, 87, 134, 0.18), inset 0 6px 10px rgba(255,255,255,0.45)',
+                    boxShadow: '0 8px 16px rgba(35, 87, 134, 0.16), inset 0 6px 10px rgba(255,255,255,0.5)',
                     cursor: 'pointer',
                     fontWeight: 600,
-                    letterSpacing: 0.2
+                    letterSpacing: 0.2,
+                    fontSize: 13,
+                    padding: 10,
+                    display: 'grid',
+                    placeItems: 'center',
+                    textAlign: 'center',
+                    lineHeight: 1.1
                   }}
                 >
                   {spawn.wordText}
                 </button>
               );
             })}
+
+            {popEffects.map((effect) => (
+              <div
+                key={effect.id}
+                style={{
+                  position: 'absolute',
+                  left: `${effect.left}%`,
+                  bottom: `${effect.bottom}%`,
+                  transform: 'translate(-50%, 50%)',
+                  pointerEvents: 'none',
+                  color: '#0a84ff',
+                  fontWeight: 800,
+                  fontSize: 26,
+                  textShadow: '0 4px 12px rgba(10,132,255,0.45)',
+                  animation: 'popRise 420ms ease-out forwards'
+                }}
+              >
+                +1 ✦
+              </div>
+            ))}
           </div>
+          <style>
+            {`@keyframes popRise {
+              0% { opacity: 1; transform: translate(-50%, 50%) scale(0.7); }
+              100% { opacity: 0; transform: translate(-50%, -5%) scale(1.2); }
+            }`}
+          </style>
         </>
       )}
 
