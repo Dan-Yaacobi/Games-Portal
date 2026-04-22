@@ -1,7 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 async function apiFetch(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(path, {
     ...options,
     credentials: 'include',
     headers: {
