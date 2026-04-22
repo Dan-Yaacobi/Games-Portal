@@ -126,3 +126,14 @@ npm run migrate
 - Auth uses JWT in an `httpOnly` cookie.
 - CORS is configured with credentials.
 - Wubble Web scoring is server-authoritative and coins are awarded only from validated score.
+
+## Vercel deployment notes
+
+Set these environment variables in Vercel for both Preview and Production deployments:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `CORS_ORIGIN` (set to your frontend deployment origin, e.g. `https://<your-app>.vercel.app`)
+
+Without `DATABASE_URL` and `JWT_SECRET`, the API function will fail to initialize.
+
