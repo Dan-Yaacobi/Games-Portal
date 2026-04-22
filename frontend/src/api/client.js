@@ -1,5 +1,14 @@
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+
+function withApiBase(path) {
+  if (!path.startsWith('/')) {
+    throw new Error('API path must start with "/"');
+  }
+  return `${API_BASE_URL}${path}`;
+}
+
 async function apiFetch(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(withApiBase(path), {
     ...options,
     credentials: 'include',
     headers: {
