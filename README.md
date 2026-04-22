@@ -132,6 +132,12 @@ npm run migrate
 Set these environment variables in Vercel for both Preview and Production deployments:
 
 - Set Vercel project **Root Directory** to the repository root (`.`), not `frontend`, so both `api/index.js` and `frontend/package.json` are included in the build.
+- In Vercel Project Settings, use:
+  - **Framework Preset**: `Other`
+  - **Build Command**: `npm --prefix frontend run build`
+  - **Output Directory**: `frontend/dist`
+  - **Install Command**: `npm install && npm --prefix frontend install`
+
 - `DATABASE_URL`
 - `JWT_SECRET`
 - `CORS_ORIGIN` (set to your frontend deployment origin, e.g. `https://<your-app>.vercel.app`)
