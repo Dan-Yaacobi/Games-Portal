@@ -57,25 +57,25 @@ npm run migrate
 ## API surface
 
 ### Auth
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/logout`
-- `GET /auth/me`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
 
 ### User
-- `GET /user/me`
+- `GET /api/user/me`
 
 ### Games
-- `GET /games`
-- `POST /games/:id/start`
-- `POST /games/:id/complete`
+- `GET /api/games`
+- `POST /api/games/:id/start`
+- `POST /api/games/:id/complete`
 
 ### Wubble Web
-- `POST /wubble-web/start`
-- `POST /wubble-web/submit`
+- `POST /api/wubble-web/start`
+- `POST /api/wubble-web/submit`
 
 ### Economy
-- `GET /economy/transactions`
+- `GET /api/economy/transactions`
 
 ## Wubble Web implementation notes
 
@@ -92,7 +92,7 @@ npm run migrate
 
 ### Session flow
 
-1. Frontend calls `POST /wubble-web/start` with `wordDifficulty`, `speedDifficulty`, and `durationSeconds` (`60` or `120`).
+1. Frontend calls `POST /api/wubble-web/start` with `wordDifficulty`, `speedDifficulty`, and `durationSeconds` (`60` or `120`).
 2. Backend resolves game slug `wubble-web`, creates/reuses platform `game_sessions` row, then generates:
    - prompt schedule (15–30 second windows for the selected game length)
    - full spawn plan (includes deterministic spawn metadata, categories, timing)
@@ -136,4 +136,6 @@ Set these environment variables in Vercel for both Preview and Production deploy
 - `CORS_ORIGIN` (set to your frontend deployment origin, e.g. `https://<your-app>.vercel.app`)
 
 Without `DATABASE_URL` and `JWT_SECRET`, the API function will fail to initialize.
+
+For local frontend development, set `VITE_API_BASE_URL=/api` so requests go through the Vite proxy to the backend.
 
