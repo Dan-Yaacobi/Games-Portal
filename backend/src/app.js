@@ -18,11 +18,11 @@ export function createApp() {
   app.use(express.json());
   app.use(cookieParser());
 
-  app.get('/health', (_req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
 
-  app.use(routes);
+  app.use('/api', routes);
   app.use(errorHandler);
 
   return app;
